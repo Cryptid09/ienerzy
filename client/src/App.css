@@ -1,0 +1,98 @@
+.App {
+  @apply min-h-screen bg-gray-50;
+}
+
+.navbar-container {
+  @apply flex justify-between items-center max-w-7xl mx-auto px-5;
+}
+
+.navbar-nav {
+  @apply flex list-none m-0 p-0;
+}
+
+.navbar-nav li {
+  @apply ml-5;
+}
+
+.navbar-nav a {
+  @apply text-gray-300 no-underline transition-colors duration-200 px-3 py-2 rounded-md;
+}
+
+.navbar-nav a:hover,
+.navbar-nav a.active {
+  @apply text-white bg-white bg-opacity-10;
+}
+
+.user-info {
+  @apply text-gray-300 mr-5;
+}
+
+.logout-btn {
+  @apply bg-transparent border border-danger-500 text-danger-500 px-3 py-1.5 rounded-md cursor-pointer transition-all duration-200 hover:bg-danger-500 hover:text-white;
+}
+
+.page-header {
+  @apply mb-8;
+}
+
+.page-header h1 {
+  @apply text-gray-800 mb-3 text-3xl font-bold;
+}
+
+.page-header p {
+  @apply text-gray-600 text-lg;
+}
+
+.action-bar {
+  @apply flex justify-between items-center mb-6;
+}
+
+.search-box {
+  @apply flex gap-3;
+}
+
+.search-box input {
+  @apply px-3 py-2 border border-gray-300 rounded-md min-w-64;
+}
+
+.modal-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50;
+}
+
+.modal {
+  @apply bg-white rounded-lg p-8 max-w-lg w-11/12 max-h-screen overflow-y-auto;
+}
+
+.modal-header {
+  @apply flex justify-between items-center mb-6;
+}
+
+.modal-header h2 {
+  @apply m-0 text-xl font-semibold;
+}
+
+.close-btn {
+  @apply bg-transparent border-none text-2xl cursor-pointer text-gray-500 hover:text-gray-700;
+}
+
+.form-row {
+  @apply grid grid-cols-2 gap-4;
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    @apply grid-cols-1;
+  }
+  
+  .action-bar {
+    @apply flex-col gap-4 items-stretch;
+  }
+  
+  .search-box {
+    @apply flex-col;
+  }
+  
+  .search-box input {
+    @apply min-w-0;
+  }
+} 
