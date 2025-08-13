@@ -92,14 +92,7 @@ echo.
 REM Install dependencies
 echo [INFO] Installing project dependencies...
 
-REM Install root dependencies
-echo [INFO] Installing root dependencies...
-call npm install
-if %errorlevel% neq 0 (
-    echo [ERROR] Failed to install root dependencies
-    pause
-    exit /b 1
-)
+
 
 REM Install server dependencies
 echo [INFO] Installing server dependencies...

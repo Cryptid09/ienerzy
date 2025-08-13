@@ -43,12 +43,9 @@ A minimal but functional Dealer & Battery Management system built for a 24-hour 
 
 ## 🚀 Quick Start
 
-### 1. Clone and Install Dependencies
+### 1. Install Dependencies
 
 ```bash
-# Install root dependencies
-npm install
-
 # Install backend dependencies
 cd server && npm install
 
@@ -263,7 +260,10 @@ ienerzy/
 
 ### Local Development
 ```bash
-npm run dev          # Start both servers
+# Start both servers (Linux/macOS)
+./dev.sh             # Recommended: Clean script-based approach
+
+# Or use npm scripts
 npm run server       # Backend only
 npm run client       # Frontend only
 ```

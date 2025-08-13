@@ -15,9 +15,12 @@ fi
 
 # Install dependencies
 echo "📦 Installing dependencies..."
+cd server
 npm install
-cd server && npm install && cd ..
-cd client && npm install && cd ..
+cd ..
+cd client
+npm install
+cd ..
 echo "✅ Dependencies installed"
 
 # Setup database schema

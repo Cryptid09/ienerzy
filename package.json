@@ -2,19 +2,16 @@
   "name": "ienerzy-dealer-battery-mvp",
   "version": "1.0.0",
   "description": "Dealer & Battery Management MVP for 24-hour hackathon",
-  "main": "server/index.js",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm run dev",
     "client": "cd client && npm start",
     "build": "cd client && npm run build",
-    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
-    "setup-db": "cd server && npm run setup-db"
+    "install-all": "cd server && npm install && cd ../client && npm install",
+    "setup-db": "cd server && npm run setup-db",
+    "clean": "rm -rf node_modules package-lock.json && cd server && rm -rf node_modules package-lock.json && cd ../client && rm -rf node_modules package-lock.json"
   },
   "keywords": ["battery", "dealer", "management", "mvp"],
   "author": "Hackathon Team",
-  "license": "MIT",
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  }
+  "license": "MIT"
 } 

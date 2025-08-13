@@ -141,13 +141,9 @@ setup_environment() {
     print_success "Environment file configured"
 }
 
-# Install dependencies
-install_dependencies() {
+  # Install dependencies
+  install_dependencies() {
     print_status "Installing project dependencies..."
-    
-    # Install root dependencies
-    print_status "Installing root dependencies..."
-    npm install
     
     # Install server dependencies
     print_status "Installing server dependencies..."
@@ -162,7 +158,7 @@ install_dependencies() {
     cd ..
     
     print_success "All dependencies installed successfully"
-}
+  }
 
 # Setup database schema
 setup_schema() {
