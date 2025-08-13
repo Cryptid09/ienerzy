@@ -3,13 +3,12 @@
   "version": "1.0.0",
   "description": "Dealer & Battery Management MVP for 24-hour hackathon",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev": "./dev.sh",
     "server": "cd server && npm run dev",
     "client": "cd client && npm start",
     "build": "cd client && npm run build",
-    "install-all": "cd server && npm install && cd ../client && npm install",
-    "setup-db": "cd server && npm run setup-db",
-    "clean": "rm -rf node_modules package-lock.json && cd server && rm -rf node_modules package-lock.json && cd ../client && rm -rf node_modules package-lock.json"
+    "install": "cd server && npm install && cd ../client && npm install",
+    "setup-db": "cd server && npm run setup-db"
   },
   "keywords": ["battery", "dealer", "management", "mvp"],
   "author": "Hackathon Team",

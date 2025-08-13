@@ -147,12 +147,49 @@ async function insertSeedData() {
       ON CONFLICT (serial_number) DO NOTHING
     `);
 
+    // Get consumer ID for linking
+    const consumerResult = await client.query(`
+      SELECT id FROM consumers WHERE phone = '7777777777'
+    `);
+
+    if (consumerResult.rows.length > 0) {
+      const consumerId = consumerResult.rows[0].id;
+      
+      // Link some batteries to the consumer
+      await client.query(`
+        UPDATE batteries 
+        SET owner_id = $1 
+        WHERE serial_number IN ('BAT001', 'BAT002')
+      `, [consumerId]);
+
+      // Create a finance application for the consumer
+      const financeResult = await client.query(`
+        INSERT INTO finance_applications (consumer_id, battery_id, amount, status) 
+        VALUES ($1, (SELECT id FROM batteries WHERE serial_number = 'BAT001'), 50000, 'approved')
+        RETURNING id
+      `, [consumerId]);
+
+      if (financeResult.rows.length > 0) {
+        const financeId = financeResult.rows[0].id;
+        
+        // Create EMI schedule for the consumer
+        await client.query(`
+          INSERT INTO emi_schedules (finance_id, due_date, amount, status) 
+          VALUES 
+            ($1, CURRENT_DATE + INTERVAL '1 month', 4167, 'pending'),
+            ($1, CURRENT_DATE + INTERVAL '2 months', 4167, 'pending'),
+            ($1, CURRENT_DATE + INTERVAL '3 months', 4167, 'pending')
+        `, [financeId]);
+      }
+    }
+
     // Insert sample consumers
     await client.query(`
       INSERT INTO consumers (name, phone, pan, aadhar, kyc_status, dealer_id) 
       VALUES 
         ('John Doe', '1111111111', 'ABCDE1234F', '123456789012', 'verified', ${dealerResult.rows[0]?.id || 2}),
-        ('Jane Smith', '2222222222', 'FGHIJ5678K', '987654321098', 'verified', ${dealerResult.rows[0]?.id || 2})
+        ('Jane Smith', '2222222222', 'FGHIJ5678K', '987654321098', 'verified', ${dealerResult.rows[0]?.id || 2}),
+        ('Consumer Demo', '7777777777', 'DEMO1234C', '777777777777', 'verified', ${dealerResult.rows[0]?.id || 2})
       ON CONFLICT (phone) DO NOTHING
     `);
 

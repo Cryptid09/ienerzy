@@ -18,7 +18,7 @@ ienerzy/
 │   └── 📄 tailwind.config.js # Tailwind configuration
 ├── 📄 package.json            # Root orchestration scripts
 ├── 📄 dev.sh                  # Development server script
-├── 📄 setup.sh                # Automated setup script
+├── 📄 SETUP.md                 # Setup guide
 └── 📄 README.md               # Project documentation
 ```
 
@@ -49,12 +49,12 @@ The root `package.json` is intentionally **minimal** and serves as an **orchestr
 
 ### **Starting Development:**
 
-#### **Option 1: Clean Script (Recommended)**
+#### **Option 1: NPM Script (Recommended)**
 ```bash
-./dev.sh              # Starts both servers cleanly
+npm run dev           # Starts both servers cleanly
 ```
 
-#### **Option 2: NPM Scripts**
+#### **Option 2: Individual Services**
 ```bash
 npm run server        # Start backend only
 npm run client        # Start frontend only
@@ -72,14 +72,12 @@ cd client && npm start
 ### **Installing Dependencies:**
 
 ```bash
-# Backend only
+# All dependencies (recommended)
+npm run install
+
+# Or install separately:
 cd server && npm install
-
-# Frontend only
 cd client && npm install
-
-# Both (using root script)
-npm run install-all
 ```
 
 ## 🗄️ Database Architecture

@@ -3,14 +3,15 @@ import React, { useState } from 'react';
 const Login = ({ onLogin, onVerifyOTP }) => {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState('phone'); // 'phone' or 'otp'
+  const [showOTP, setShowOTP] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [userType, setUserType] = useState('dealer'); // 'dealer' or 'consumer'
 
-  const handlePhoneSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!phone) {
-      setError('Please enter a phone number');
+      setError('Please enter phone number');
       return;
     }
 
@@ -18,19 +19,22 @@ const Login = ({ onLogin, onVerifyOTP }) => {
     setError('');
 
     try {
-      await onLogin(phone);
-      setStep('otp');
-    } catch (err) {
-      setError(err.error || 'Failed to send OTP');
+      const response = await onLogin(phone, userType);
+      if (response.success) {
+        setShowOTP(true);
+        console.log(`OTP for ${userType}: ${response.otp}`);
+      }
+    } catch (error) {
+      setError(error.error || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOTPSubmit = async (e) => {
+  const handleVerifyOTP = async (e) => {
     e.preventDefault();
     if (!otp) {
-      setError('Please enter the OTP');
+      setError('Please enter OTP');
       return;
     }
 
@@ -38,111 +42,150 @@ const Login = ({ onLogin, onVerifyOTP }) => {
     setError('');
 
     try {
-      await onVerifyOTP(phone, otp);
-    } catch (err) {
-      setError(err.error || 'Invalid OTP');
+      await onVerifyOTP(phone, otp, userType);
+    } catch (error) {
+      setError(error.error || 'OTP verification failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const goBack = () => {
-    setStep('phone');
+  const resetForm = () => {
+    setPhone('');
     setOtp('');
+    setShowOTP(false);
     setError('');
+    setUserType('dealer');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="card">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Ienerzy Battery Management
-            </h1>
-            <p className="text-gray-600">
-              {step === 'phone' ? 'Enter your phone number to login' : 'Enter the OTP sent to your phone'}
-            </p>
-          </div>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Welcome to Ienerzy
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Battery Management System
+          </p>
+        </div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">
-              {error}
-            </div>
-          )}
+        {/* User Type Selector */}
+        <div className="flex rounded-md shadow-sm">
+          <button
+            type="button"
+            onClick={() => setUserType('dealer')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-l-md border ${
+              userType === 'dealer'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Dealer/Admin
+          </button>
+          <button
+            type="button"
+            onClick={() => setUserType('consumer')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-r-md border ${
+              userType === 'consumer'
+                ? 'bg-green-600 text-white border-green-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Consumer
+          </button>
+        </div>
 
-          {step === 'phone' ? (
-            <form onSubmit={handlePhoneSubmit}>
-              <div className="form-group">
-                <label htmlFor="phone" className="form-label">
+        <div className="bg-white py-8 px-6 shadow rounded-lg">
+          {!showOTP ? (
+            <form onSubmit={handleLogin} className="space-y-6">
+              <div>
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
                   Phone Number
                 </label>
                 <input
-                  type="tel"
                   id="phone"
+                  name="phone"
+                  type="tel"
+                  required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Enter your phone number"
-                  className="form-input"
-                  disabled={loading}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={userType === 'dealer' ? '8888888888' : '7777777777'}
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  {userType === 'dealer' 
+                    ? 'Demo: 8888888888 (Dealer) or 9999999999 (Admin)'
+                    : 'Demo: 7777777777 (Consumer)'
+                  }
+                </p>
               </div>
-              
+
+              {error && (
+                <div className="text-red-600 text-sm text-center">{error}</div>
+              )}
+
               <button
                 type="submit"
-                className="btn btn-primary w-full"
                 disabled={loading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
                 {loading ? 'Sending OTP...' : 'Send OTP'}
               </button>
             </form>
           ) : (
-            <form onSubmit={handleOTPSubmit}>
-              <div className="form-group">
-                <label htmlFor="otp" className="form-label">
-                  OTP Code
+            <form onSubmit={handleVerifyOTP} className="space-y-6">
+              <div>
+                <label htmlFor="otp" className="block text-sm font-medium text-gray-700">
+                  Enter OTP
                 </label>
                 <input
-                  type="text"
                   id="otp"
+                  name="otp"
+                  type="text"
+                  required
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
-                  placeholder="Enter 6-digit OTP"
-                  className="form-input text-center text-2xl tracking-widest"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="123456"
                   maxLength="6"
-                  disabled={loading}
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Check console for OTP code
+                </p>
               </div>
-              
-              <div className="flex gap-3">
+
+              {error && (
+                <div className="text-red-600 text-sm text-center">{error}</div>
+              )}
+
+              <div className="flex space-x-3">
                 <button
                   type="button"
-                  onClick={goBack}
-                  className="btn btn-secondary flex-1"
-                  disabled={loading}
+                  onClick={resetForm}
+                  className="flex-1 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Back
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary flex-1"
                   disabled={loading}
+                  className="flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                 >
                   {loading ? 'Verifying...' : 'Verify OTP'}
                 </button>
               </div>
             </form>
           )}
+        </div>
 
-          <div className="mt-6 text-center text-sm text-gray-500">
-            <p>Demo Credentials:</p>
-            <p className="font-mono mt-1">
-              Dealer: 8888888888 | Admin: 9999999999
-            </p>
-            <p className="text-xs mt-2">
-              Check console for OTP codes
-            </p>
-          </div>
+        <div className="text-center">
+          <p className="text-xs text-gray-500">
+            {userType === 'dealer' 
+              ? 'Login as dealer or admin to manage batteries and consumers'
+              : 'Login as consumer to view battery health and manage EMIs'
+            }
+          </p>
         </div>
       </div>
     </div>

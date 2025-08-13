@@ -16,38 +16,63 @@ function generateMockOTP() {
 // POST /auth/login - Generate OTP
 router.post('/login', async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, userType } = req.body;
     
     if (!phone) {
       return res.status(400).json({ error: 'Phone number is required' });
     }
 
-    // Check if user exists
-    const userResult = await global.db.query(
-      'SELECT * FROM users WHERE phone = $1',
-      [phone]
-    );
+    let user = null;
+    let isConsumer = false;
 
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+    if (userType === 'consumer') {
+      // Check consumers table for consumer login
+      const consumerResult = await global.db.query(
+        'SELECT id, name, phone, "kyc_status" as status FROM consumers WHERE phone = $1',
+        [phone]
+      );
+
+      if (consumerResult.rows.length > 0) {
+        user = consumerResult.rows[0];
+        isConsumer = true;
+        // Add role for consumers
+        user.role = 'consumer';
+      }
+    } else {
+      // Check users table for dealer/admin login
+      const userResult = await global.db.query(
+        'SELECT * FROM users WHERE phone = $1',
+        [phone]
+      );
+
+      if (userResult.rows.length > 0) {
+        user = userResult.rows[0];
+      }
     }
 
-    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({ 
+        error: userType === 'consumer' ? 'Consumer not found' : 'User not found' 
+      });
+    }
     
     // Generate mock OTP
     const otp = generateMockOTP();
     mockOTPs.set(phone, {
       otp,
       user,
+      isConsumer,
       expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
     });
 
-    console.log(`Mock OTP for ${phone}: ${otp}`);
+    console.log(`Mock OTP for ${userType} ${phone}: ${otp}`);
 
     res.json({ 
+      success: true,
       message: 'OTP sent successfully',
       phone,
-      expiresIn: '5 minutes'
+      expiresIn: '5 minutes',
+      otp // Include OTP for demo purposes
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -58,7 +83,7 @@ router.post('/login', async (req, res) => {
 // POST /auth/verify-otp - Verify OTP and issue JWT
 router.post('/verify-otp', async (req, res) => {
   try {
-    const { phone, otp } = req.body;
+    const { phone, otp, userType } = req.body;
     
     if (!phone || !otp) {
       return res.status(400).json({ error: 'Phone and OTP are required' });
@@ -89,7 +114,8 @@ router.post('/verify-otp', async (req, res) => {
       { 
         userId: user.id, 
         phone: user.phone, 
-        role: user.role 
+        role: user.role,
+        isConsumer: otpData.isConsumer
       },
       JWT_SECRET,
       { expiresIn: '24h' }

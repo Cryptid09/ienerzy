@@ -15,16 +15,40 @@ const ConsumerView = ({ user }) => {
   const fetchConsumerData = async () => {
     try {
       setLoading(true);
-      // For demo, we'll show all batteries and EMIs
-      const [batteriesRes, emiRes] = await Promise.all([
-        axios.get('/batteries'),
-        axios.get('/finance/emi-due')
-      ]);
       
-      setBatteries(batteriesRes.data);
-      setEmiDue(emiRes.data);
+      if (user.role === 'consumer') {
+        // For consumer users, fetch their specific data
+        const [batteriesRes, emiRes] = await Promise.all([
+          axios.get(`/consumers/${user.id}/batteries`),
+          axios.get(`/consumers/${user.id}/emi-due`)
+        ]);
+        
+        setBatteries(batteriesRes.data);
+        setEmiDue(emiRes.data);
+      } else {
+        // For dealer/admin users, show all data (existing behavior)
+        const [batteriesRes, emiRes] = await Promise.all([
+          axios.get('/batteries'),
+          axios.get('/finance/emi-due')
+        ]);
+        
+        setBatteries(batteriesRes.data);
+        setEmiDue(emiRes.data);
+      }
     } catch (error) {
       console.error('Error fetching consumer data:', error);
+      // If specific consumer endpoints don't exist, fall back to showing all data
+      try {
+        const [batteriesRes, emiRes] = await Promise.all([
+          axios.get('/batteries'),
+          axios.get('/finance/emi-due')
+        ]);
+        
+        setBatteries(batteriesRes.data);
+        setEmiDue(emiRes.data);
+      } catch (fallbackError) {
+        console.error('Fallback data fetch failed:', fallbackError);
+      }
     } finally {
       setLoading(false);
     }

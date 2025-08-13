@@ -46,13 +46,12 @@ A minimal but functional Dealer & Battery Management system built for a 24-hour 
 ### 1. Install Dependencies
 
 ```bash
-# Install backend dependencies
+# Install all dependencies (recommended)
+npm run install
+
+# Or install separately:
 cd server && npm install
-
-# Install frontend dependencies
 cd ../client && npm install
-
-# Return to root
 cd ..
 ```
 
@@ -81,15 +80,12 @@ nano server/.env
 ### 4. Start the Application
 
 ```bash
-# Start both backend and frontend
+# Start both servers (recommended)
 npm run dev
 
 # Or start separately:
-# Backend only
-npm run server
-
-# Frontend only
-npm run client
+npm run server    # Backend only
+npm run client    # Frontend only
 ```
 
 The application will be available at:
@@ -260,10 +256,10 @@ ienerzy/
 
 ### Local Development
 ```bash
-# Start both servers (Linux/macOS)
-./dev.sh             # Recommended: Clean script-based approach
+# Start both servers (recommended)
+npm run dev
 
-# Or use npm scripts
+# Or start individually
 npm run server       # Backend only
 npm run client       # Frontend only
 ```

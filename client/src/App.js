@@ -41,18 +41,18 @@ function App() {
     }
   };
 
-  const login = async (phone) => {
+  const login = async (phone, userType) => {
     try {
-      const response = await axios.post('/auth/login', { phone });
+      const response = await axios.post('/auth/login', { phone, userType });
       return response.data;
     } catch (error) {
       throw error.response?.data || { error: 'Login failed' };
     }
   };
 
-  const verifyOTP = async (phone, otp) => {
+  const verifyOTP = async (phone, otp, userType) => {
     try {
-      const response = await axios.post('/auth/verify-otp', { phone, otp });
+      const response = await axios.post('/auth/verify-otp', { phone, otp, userType });
       const { token, user } = response.data;
       
       localStorage.setItem('token', token);
@@ -84,13 +84,24 @@ function App() {
       <Navbar user={user} onLogout={logout} />
       <div className="container">
         <Routes>
-          <Route path="/" element={<Dashboard user={user} />} />
-          <Route path="/batteries" element={<Batteries user={user} />} />
-          <Route path="/consumers" element={<Consumers user={user} />} />
-          <Route path="/finance" element={<Finance user={user} />} />
-          <Route path="/service" element={<Service user={user} />} />
-          <Route path="/consumer-view" element={<ConsumerView user={user} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {user.role === 'consumer' ? (
+            // Consumer Routes
+            <>
+              <Route path="/" element={<ConsumerView user={user} />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          ) : (
+            // Dealer/Admin Routes
+            <>
+              <Route path="/" element={<Dashboard user={user} />} />
+              <Route path="/batteries" element={<Batteries user={user} />} />
+              <Route path="/consumers" element={<Consumers user={user} />} />
+              <Route path="/finance" element={<Finance user={user} />} />
+              <Route path="/service" element={<Service user={user} />} />
+              <Route path="/consumer-view" element={<ConsumerView user={user} />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          )}
         </Routes>
       </div>
     </div>

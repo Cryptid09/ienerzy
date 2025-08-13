@@ -172,4 +172,49 @@ router.post('/:id/kyc-verify', authenticateToken, requireRole(['dealer', 'admin'
   }
 });
 
+// GET /consumers/:id/emi-due - Get EMI due for specific consumer
+router.get('/:id/emi-due', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const query = `
+      SELECT es.*, fa.amount as total_amount, b.serial_number as battery_serial
+      FROM emi_schedules es
+      JOIN finance_applications fa ON es.finance_id = fa.id
+      JOIN batteries b ON fa.battery_id = b.id
+      WHERE fa.consumer_id = $1 AND es.status IN ('pending', 'overdue')
+      ORDER BY es.due_date ASC
+    `;
+    
+    const result = await global.db.query(query, [id]);
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching consumer EMI due:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /consumers/:id/batteries - Get batteries owned by specific consumer
+router.get('/:id/batteries', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const query = `
+      SELECT b.*, c.name as consumer_name, c.phone as consumer_phone
+      FROM batteries b
+      LEFT JOIN consumers c ON b.owner_id = c.id
+      WHERE c.id = $1
+      ORDER BY b.serial_number ASC
+    `;
+    
+    const result = await global.db.query(query, [id]);
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching consumer batteries:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router; 
