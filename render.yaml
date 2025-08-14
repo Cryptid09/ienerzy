@@ -3,8 +3,15 @@ services:
     name: ienerzy-backend
     env: node
     plan: free
-    buildCommand: cd server && npm install
-    startCommand: cd server && npm start
+    buildCommand: |
+      echo "Building Node.js application..."
+      cd server
+      npm install --production
+      echo "Build completed successfully"
+    startCommand: |
+      echo "Starting Node.js application..."
+      cd server
+      npm start
     envVars:
       - key: NODE_ENV
         value: production

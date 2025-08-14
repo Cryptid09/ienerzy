@@ -87,14 +87,14 @@ router.post('/login', async (req, res) => {
       console.error('SMS sending failed:', smsError);
       
       // Fallback: still store OTP but inform user about SMS failure
-      res.json({ 
-        success: true,
+    res.json({ 
+      success: true,
         message: 'OTP generated but SMS delivery failed. Please check your phone number.',
-        phone,
-        expiresIn: '5 minutes',
+      phone,
+      expiresIn: '5 minutes',
         otp, // Include OTP for demo purposes if SMS fails
         smsError: smsError.message
-      });
+    });
     }
   } catch (error) {
     console.error('Login error:', error);
@@ -407,7 +407,7 @@ router.post('/login-password', async (req, res) => {
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid password' });
     }
-
+    
     // Generate JWT token
     const token = jwt.sign(
       { 
@@ -415,8 +415,8 @@ router.post('/login-password', async (req, res) => {
         phone: user.phone, 
         role: user.role,
         isConsumer: false
-      }, 
-      JWT_SECRET, 
+      },
+      JWT_SECRET,
       { expiresIn: '24h' }
     );
 
