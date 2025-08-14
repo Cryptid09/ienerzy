@@ -9,6 +9,7 @@ import Consumers from './components/Consumers';
 import Finance from './components/Finance';
 import Service from './components/Service';
 import ConsumerView from './components/ConsumerView';
+import MessagingTest from './components/MessagingTest';
 import './App.css';
 
 // Set default axios base URL
@@ -98,6 +99,7 @@ function App() {
               <Route path="/consumers" element={<Consumers user={user} />} />
               <Route path="/finance" element={<Finance user={user} />} />
               <Route path="/service" element={<Service user={user} />} />
+              <Route path="/messaging" element={<MessagingTest />} />
               <Route path="/consumer-view" element={<ConsumerView user={user} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>

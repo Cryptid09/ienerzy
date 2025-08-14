@@ -189,7 +189,8 @@ async function insertSeedData() {
       VALUES 
         ('John Doe', '1111111111', 'ABCDE1234F', '123456789012', 'verified', ${dealerResult.rows[0]?.id || 2}),
         ('Jane Smith', '2222222222', 'FGHIJ5678K', '987654321098', 'verified', ${dealerResult.rows[0]?.id || 2}),
-        ('Consumer Demo', '7777777777', 'DEMO1234C', '777777777777', 'verified', ${dealerResult.rows[0]?.id || 2})
+        ('Consumer Demo', '7777777777', 'DEMO1234C', '777777777777', 'verified', ${dealerResult.rows[0]?.id || 2}),
+        ('Original Contact', '8827270123', 'ORIG1234C', '882727012345', 'verified', ${dealerResult.rows[0]?.id || 2})
       ON CONFLICT (phone) DO NOTHING
     `);
 

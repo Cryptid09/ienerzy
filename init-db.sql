@@ -85,7 +85,8 @@ ON CONFLICT (serial_number) DO NOTHING;
 -- Insert sample consumers
 INSERT INTO consumers (name, phone, pan, aadhar, kyc_status, dealer_id) VALUES 
     ('John Doe', '1111111111', 'ABCDE1234F', '123456789012', 'verified', 2),
-    ('Jane Smith', '2222222222', 'FGHIJ5678K', '987654321098', 'verified', 2)
+    ('Jane Smith', '2222222222', 'FGHIJ5678K', '987654321098', 'verified', 2),
+    ('Original Contact', '8827270123', 'ORIG1234C', '882727012345', 'verified', 2)
 ON CONFLICT (phone) DO NOTHING;
 
 -- Create indexes for better performance

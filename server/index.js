@@ -10,6 +10,8 @@ const batteryRoutes = require('./routes/batteries');
 const consumerRoutes = require('./routes/consumers');
 const financeRoutes = require('./routes/finance');
 const serviceRoutes = require('./routes/service');
+const messagingRoutes = require('./routes/messaging');
+const emailRoutes = require('./routes/email');
 const { setupDatabase } = require('./database/setup');
 
 const app = express();
@@ -27,6 +29,8 @@ app.use('/api/batteries', batteryRoutes);
 app.use('/api/consumers', consumerRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/service', serviceRoutes);
+app.use('/api/messaging', messagingRoutes);
+app.use('/api/email', emailRoutes);
 
 // WebSocket for real-time telemetry
 wss.on('connection', (ws) => {

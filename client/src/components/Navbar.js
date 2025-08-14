@@ -16,6 +16,7 @@ const Navbar = ({ user, onLogout }) => {
     { path: '/consumers', label: 'Consumers', roles: ['dealer', 'admin'] },
     { path: '/finance', label: 'Finance', roles: ['dealer', 'admin'] },
     { path: '/service', label: 'Service', roles: ['dealer', 'admin'] },
+    { path: '/messaging', label: 'Messaging', roles: ['dealer', 'admin'] },
     { path: '/consumer-view', label: 'Consumer View', roles: ['dealer', 'admin'] }
   ];
 
