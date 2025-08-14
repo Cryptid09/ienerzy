@@ -2,10 +2,10 @@
   "version": 2,
   "builds": [
     {
-      "src": "package.json",
+      "src": "client/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "build"
+        "distDir": "client/build"
       }
     }
   ],
@@ -22,6 +22,6 @@
   "env": {
     "REACT_APP_API_URL": "https://ienerzy.onrender.com"
   },
-  "buildCommand": "npm run build",
-  "outputDirectory": "build"
+  "buildCommand": "cd client && npm install && npm run build",
+  "outputDirectory": "client/build"
 } 
