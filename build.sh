@@ -8,31 +8,28 @@ if [ ! -d "client" ]; then
     exit 1
 fi
 
-# Navigate to client directory
-cd client
-
-# Check if package.json exists
-if [ ! -f "package.json" ]; then
+# Check if package.json exists in client
+if [ ! -f "client/package.json" ]; then
     echo "❌ Error: client/package.json not found"
     exit 1
 fi
 
-# Install dependencies
+# Install dependencies (from root directory)
 echo "📦 Installing dependencies..."
 npm install
 
-# Build the application
+# Build the application (from root directory)
 echo "🔨 Building React application..."
 npm run build
 
 # Check if build was successful
-if [ -d "build" ]; then
+if [ -d "client/build" ]; then
     echo "✅ Build successful! Build directory created."
     echo "📁 Build contents:"
-    ls -la build/
+    ls -la client/build/
     
     # Check for index.html
-    if [ -f "build/index.html" ]; then
+    if [ -f "client/build/index.html" ]; then
         echo "✅ index.html found in build directory"
     else
         echo "❌ index.html not found in build directory"
