@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const { pool } = require('../database/setup');
 
 // GET /batteries - List all batteries for dealer
 router.get('/', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
@@ -16,13 +17,13 @@ router.get('/', authenticateToken, requireRole(['dealer', 'admin']), async (req,
     let params = [];
     
     if (req.user.role === 'dealer') {
-      query += ' WHERE b.owner_id = $1';
+      query += ' WHERE c.dealer_id = $1';
       params.push(userId);
     }
     
     query += ' ORDER BY b.created_at DESC';
     
-    const result = await global.db.query(query, params);
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching batteries:', error);
@@ -40,9 +41,9 @@ router.post('/', authenticateToken, requireRole(['dealer']), async (req, res) =>
       return res.status(400).json({ error: 'Serial number is required' });
     }
     
-    const result = await global.db.query(
-      'INSERT INTO batteries (serial_number, health_score, owner_id) VALUES ($1, $2, $3) RETURNING *',
-      [serial_number, health_score || 100, dealerId]
+    const result = await pool.query(
+      'INSERT INTO batteries (serial_number, health_score, owner_id) VALUES ($1, $2, NULL) RETURNING *',
+      [serial_number, health_score || 100]
     );
     
     res.status(201).json(result.rows[0]);
@@ -61,7 +62,7 @@ router.get('/:serial', authenticateToken, async (req, res) => {
   try {
     const { serial } = req.params;
     
-    const result = await global.db.query(
+    const result = await pool.query(
       'SELECT * FROM batteries WHERE serial_number = $1',
       [serial]
     );
@@ -117,7 +118,7 @@ router.post('/:serial/control', authenticateToken, requireRole(['dealer', 'admin
         break;
     }
     
-    const result = await global.db.query(
+    const result = await pool.query(
       'UPDATE batteries SET status = $1 WHERE serial_number = $2 RETURNING *',
       [newStatus, serial]
     );
@@ -139,7 +140,7 @@ router.put('/:serial', authenticateToken, requireRole(['dealer', 'admin']), asyn
     const { serial } = req.params;
     const { health_score, status } = req.body;
     
-    const result = await global.db.query(
+    const result = await pool.query(
       'UPDATE batteries SET health_score = COALESCE($1, health_score), status = COALESCE($2, status) WHERE serial_number = $3 RETURNING *',
       [health_score, status, serial]
     );
@@ -160,7 +161,7 @@ router.delete('/:serial', authenticateToken, requireRole(['dealer', 'admin']), a
   try {
     const { serial } = req.params;
     
-    const result = await global.db.query(
+    const result = await pool.query(
       'DELETE FROM batteries WHERE serial_number = $1 RETURNING *',
       [serial]
     );

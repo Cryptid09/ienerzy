@@ -42,19 +42,7 @@ async function createTables() {
       )
     `);
 
-    // Batteries table
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS batteries (
-        id SERIAL PRIMARY KEY,
-        serial_number VARCHAR(50) UNIQUE NOT NULL,
-        status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
-        health_score INTEGER DEFAULT 100 CHECK (health_score >= 0 AND health_score <= 100),
-        owner_id INTEGER REFERENCES users(id),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Consumers table
+    // Consumers table (must be before batteries since batteries.owner_id references consumers)
     await client.query(`
       CREATE TABLE IF NOT EXISTS consumers (
         id SERIAL PRIMARY KEY,
@@ -64,6 +52,18 @@ async function createTables() {
         aadhar VARCHAR(12),
         kyc_status VARCHAR(20) DEFAULT 'pending' CHECK (kyc_status IN ('pending', 'verified', 'rejected')),
         dealer_id INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Batteries table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS batteries (
+        id SERIAL PRIMARY KEY,
+        serial_number VARCHAR(50) UNIQUE NOT NULL,
+        status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
+        health_score INTEGER DEFAULT 100 CHECK (health_score >= 0 AND health_score <= 100),
+        owner_id INTEGER REFERENCES consumers(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -106,6 +106,16 @@ async function createTables() {
       )
     `);
 
+    // Ensure batteries.owner_id points to consumers(id)
+    await client.query(`ALTER TABLE batteries DROP CONSTRAINT IF EXISTS batteries_owner_id_fkey`);
+    // Clean up any invalid owner references before adding the constraint
+    await client.query(`
+      UPDATE batteries 
+      SET owner_id = NULL 
+      WHERE owner_id IS NOT NULL AND owner_id NOT IN (SELECT id FROM consumers)
+    `);
+    await client.query(`ALTER TABLE batteries ADD CONSTRAINT batteries_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES consumers(id) ON DELETE SET NULL`);
+
     console.log('Tables created successfully');
   } finally {
     client.release();
@@ -137,32 +147,35 @@ async function insertSeedData() {
       ON CONFLICT (phone) DO NOTHING
     `);
 
-    // Insert sample batteries
+    // Insert sample batteries with no owner initially (will be linked to consumer below)
     await client.query(`
       INSERT INTO batteries (serial_number, status, health_score, owner_id) 
       VALUES 
-        ('BAT001', 'active', 95, ${dealerResult.rows[0]?.id || 2}),
-        ('BAT002', 'active', 87, ${dealerResult.rows[0]?.id || 2}),
-        ('BAT003', 'maintenance', 45, ${dealerResult.rows[0]?.id || 2})
+        ('BAT001', 'active', 95, NULL),
+        ('BAT002', 'active', 87, NULL),
+        ('BAT003', 'maintenance', 45, NULL)
       ON CONFLICT (serial_number) DO NOTHING
     `);
 
-    // Get consumer ID for linking
-    const consumerResult = await client.query(`
-      SELECT id FROM consumers WHERE phone = '7777777777'
-    `);
+    // Insert ONLY the original contact consumer
+    const consumerResult = await pool.query(
+      'INSERT INTO consumers (name, phone, kyc_status, dealer_id) VALUES ($1, $2, $3, $4) ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name, kyc_status = EXCLUDED.kyc_status, dealer_id = EXCLUDED.dealer_id RETURNING *',
+      ['Original Contact', '9340968955', 'verified', dealerResult.rows[0]?.id || 2]
+    );
 
-    if (consumerResult.rows.length > 0) {
-      const consumerId = consumerResult.rows[0].id;
+    // Get the original contact consumer ID
+    const consumerId = consumerResult.rows[0]?.id;
+
+    if (consumerId) {
       
-      // Link some batteries to the consumer
+      // Link some batteries to the original contact consumer
       await client.query(`
         UPDATE batteries 
         SET owner_id = $1 
         WHERE serial_number IN ('BAT001', 'BAT002')
       `, [consumerId]);
 
-      // Create a finance application for the consumer
+      // Create a finance application for the original contact consumer
       const financeResult = await client.query(`
         INSERT INTO finance_applications (consumer_id, battery_id, amount, status) 
         VALUES ($1, (SELECT id FROM batteries WHERE serial_number = 'BAT001'), 50000, 'approved')
@@ -172,7 +185,7 @@ async function insertSeedData() {
       if (financeResult.rows.length > 0) {
         const financeId = financeResult.rows[0].id;
         
-        // Create EMI schedule for the consumer
+        // Create EMI schedule for the original contact consumer
         await client.query(`
           INSERT INTO emi_schedules (finance_id, due_date, amount, status) 
           VALUES 
@@ -181,18 +194,28 @@ async function insertSeedData() {
             ($1, CURRENT_DATE + INTERVAL '3 months', 4167, 'pending')
         `, [financeId]);
       }
-    }
 
-    // Insert sample consumers
-    await client.query(`
-      INSERT INTO consumers (name, phone, pan, aadhar, kyc_status, dealer_id) 
-      VALUES 
-        ('John Doe', '1111111111', 'ABCDE1234F', '123456789012', 'verified', ${dealerResult.rows[0]?.id || 2}),
-        ('Jane Smith', '2222222222', 'FGHIJ5678K', '987654321098', 'verified', ${dealerResult.rows[0]?.id || 2}),
-        ('Consumer Demo', '7777777777', 'DEMO1234C', '777777777777', 'verified', ${dealerResult.rows[0]?.id || 2}),
-        ('Original Contact', '8827270123', 'ORIG1234C', '882727012345', 'verified', ${dealerResult.rows[0]?.id || 2})
-      ON CONFLICT (phone) DO NOTHING
-    `);
+      // Create sample service tickets for demonstration
+      const battery1Id = await client.query('SELECT id FROM batteries WHERE serial_number = $1', ['BAT001']);
+      const battery3Id = await client.query('SELECT id FROM batteries WHERE serial_number = $1', ['BAT003']);
+      
+      if (battery1Id.rows.length > 0) {
+        await client.query(`
+          INSERT INTO service_tickets (battery_id, issue_category, description, assigned_to, status, location) 
+          VALUES 
+            ($1, 'Low Performance', 'Battery showing reduced capacity', $2, 'resolved', 'Bangalore Central'),
+            ($1, 'Charging Issues', 'Slow charging reported by consumer', $2, 'in_progress', 'Bangalore Central')
+        `, [battery1Id.rows[0].id, dealerResult.rows[0]?.id || 2]);
+      }
+
+      if (battery3Id.rows.length > 0) {
+        await client.query(`
+          INSERT INTO service_tickets (battery_id, issue_category, description, assigned_to, status, location) 
+          VALUES 
+            ($1, 'Maintenance Required', 'Battery health below 50%, needs inspection', $2, 'assigned', 'Bangalore South')
+        `, [battery3Id.rows[0].id, dealerResult.rows[0]?.id || 2]);
+      }
+    }
 
     console.log('Seed data inserted successfully');
   } finally {

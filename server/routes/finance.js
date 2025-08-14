@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const { pool } = require('../database/setup');
 
 // Mock NBFC API response
 async function mockNBFCApproval(applicationData) {
@@ -49,7 +50,7 @@ router.post('/applications', authenticateToken, requireRole(['dealer']), async (
     }
     
     // Verify consumer belongs to dealer
-    const consumerResult = await global.db.query(
+    const consumerResult = await pool.query(
       'SELECT * FROM consumers WHERE id = $1 AND dealer_id = $2',
       [consumer_id, dealerId]
     );
@@ -59,7 +60,7 @@ router.post('/applications', authenticateToken, requireRole(['dealer']), async (
     }
     
     // Create finance application
-    const applicationResult = await global.db.query(
+    const applicationResult = await pool.query(
       'INSERT INTO finance_applications (consumer_id, battery_id, amount, status) VALUES ($1, $2, $3, $4) RETURNING *',
       [consumer_id, battery_id, amount, 'pending']
     );
@@ -71,7 +72,7 @@ router.post('/applications', authenticateToken, requireRole(['dealer']), async (
     
     if (nbfcResponse.approved) {
       // Update application status
-      await global.db.query(
+      await pool.query(
         'UPDATE finance_applications SET status = $1 WHERE id = $2',
         ['approved', application.id]
       );
@@ -80,7 +81,7 @@ router.post('/applications', authenticateToken, requireRole(['dealer']), async (
       const emiSchedule = generateEMISchedule(application.id, amount, 12);
       
       for (const emi of emiSchedule) {
-        await global.db.query(
+        await pool.query(
           'INSERT INTO emi_schedules (finance_id, due_date, amount, status) VALUES ($1, $2, $3, $4)',
           [emi.finance_id, emi.due_date, emi.amount, emi.status]
         );
@@ -122,7 +123,7 @@ router.get('/applications', authenticateToken, requireRole(['dealer', 'admin']),
     
     query += ' ORDER BY fa.created_at DESC';
     
-    const result = await global.db.query(query, params);
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching finance applications:', error);
@@ -131,7 +132,7 @@ router.get('/applications', authenticateToken, requireRole(['dealer', 'admin']),
 });
 
 // GET /finance/applications/:id - Get finance application details
-router.get('/applications/:id', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
+router.get('/applications/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const dealerId = req.user.role === 'dealer' ? req.user.userId : null;
@@ -152,7 +153,7 @@ router.get('/applications/:id', authenticateToken, requireRole(['dealer', 'admin
       params.push(dealerId);
     }
     
-    const result = await global.db.query(query, params);
+    const result = await pool.query(query, params);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Finance application not found' });
@@ -161,7 +162,7 @@ router.get('/applications/:id', authenticateToken, requireRole(['dealer', 'admin
     const application = result.rows[0];
     
     // Get EMI schedule
-    const emiResult = await global.db.query(
+    const emiResult = await pool.query(
       'SELECT * FROM emi_schedules WHERE finance_id = $1 ORDER BY due_date',
       [id]
     );
@@ -175,20 +176,20 @@ router.get('/applications/:id', authenticateToken, requireRole(['dealer', 'admin
   }
 });
 
-// POST /finance/emi-payment - Mark EMI as paid
-router.post('/emi-payment', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
+// POST /finance/emi-payment - Process EMI payment
+router.post('/emi-payment', authenticateToken, async (req, res) => {
   try {
     const { emi_id, payment_amount } = req.body;
     
     if (!emi_id || !payment_amount) {
       return res.status(400).json({ error: 'EMI ID and payment amount are required' });
     }
-    
-    // Mock payment gateway - always successful
-    const paymentStatus = 'success';
+
+    // Mock payment gateway response
+    const paymentStatus = 'success'; // Always success for demo
     
     if (paymentStatus === 'success') {
-      const result = await global.db.query(
+      const result = await pool.query(
         'UPDATE emi_schedules SET status = $1 WHERE id = $2 RETURNING *',
         ['paid', emi_id]
       );
@@ -198,7 +199,8 @@ router.post('/emi-payment', authenticateToken, requireRole(['dealer', 'admin']),
       }
       
       res.json({
-        message: 'EMI payment successful',
+        success: true,
+        message: 'EMI payment processed successfully',
         emi: result.rows[0]
       });
     } else {
@@ -234,7 +236,7 @@ router.get('/emi-due', authenticateToken, requireRole(['dealer', 'admin']), asyn
     
     query += ' ORDER BY es.due_date ASC';
     
-    const result = await global.db.query(query, params);
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching EMI due list:', error);

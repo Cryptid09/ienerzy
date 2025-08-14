@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const { pool } = require('../database/setup');
 
-// Mock technician list
+// Mock technician list - these are separate from users table
 const mockTechnicians = [
   { id: 1, name: 'Tech One', location: 'Bangalore Central', status: 'available' },
   { id: 2, name: 'Tech Two', location: 'Bangalore North', status: 'available' },
@@ -28,24 +29,35 @@ router.post('/tickets', authenticateToken, requireRole(['dealer', 'admin']), asy
     }
     
     // Verify battery exists and belongs to dealer
-    const batteryResult = await global.db.query(
-      'SELECT * FROM batteries WHERE id = $1',
-      [battery_id]
-    );
+    let batteryQuery = `
+      SELECT b.*, c.dealer_id 
+      FROM batteries b
+      LEFT JOIN consumers c ON b.owner_id = c.id
+      WHERE b.id = $1
+    `;
+    
+    const batteryResult = await pool.query(batteryQuery, [battery_id]);
     
     if (batteryResult.rows.length === 0) {
       return res.status(404).json({ error: 'Battery not found' });
     }
     
-    // Auto-assign to nearest technician
+    const battery = batteryResult.rows[0];
+    
+    // Check if dealer has access to this battery
+    if (req.user.role === 'dealer' && battery.dealer_id !== req.user.userId) {
+      return res.status(403).json({ error: 'Access denied to this battery' });
+    }
+    
+    // Auto-assign to nearest technician (using mock technician ID)
     const assignedTechnician = findNearestTechnician(location);
     
     if (!assignedTechnician) {
       return res.status(503).json({ error: 'No technicians available' });
     }
     
-    // Create service ticket
-    const result = await global.db.query(
+    // Create service ticket with mock technician ID
+    const result = await pool.query(
       'INSERT INTO service_tickets (battery_id, issue_category, description, assigned_to, status, location) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [battery_id, issue_category, description, assignedTechnician.id, 'assigned', location]
     );
@@ -84,7 +96,7 @@ router.get('/tickets', authenticateToken, requireRole(['dealer', 'admin']), asyn
     
     query += ' ORDER BY st.created_at DESC';
     
-    const result = await global.db.query(query, params);
+    const result = await pool.query(query, params);
     
     // Add technician info to tickets
     const tickets = result.rows.map(ticket => ({
@@ -121,7 +133,7 @@ router.get('/tickets/:id', authenticateToken, requireRole(['dealer', 'admin']), 
       params.push(dealerId);
     }
     
-    const result = await global.db.query(query, params);
+    const result = await pool.query(query, params);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Service ticket not found' });
@@ -147,7 +159,7 @@ router.put('/tickets/:id/status', authenticateToken, requireRole(['dealer', 'adm
       return res.status(400).json({ error: 'Valid status is required' });
     }
     
-    const result = await global.db.query(
+    const result = await pool.query(
       'UPDATE service_tickets SET status = $1 WHERE id = $2 RETURNING *',
       [status, id]
     );
@@ -194,7 +206,7 @@ router.post('/tickets/:id/reassign', authenticateToken, requireRole(['dealer', '
       return res.status(404).json({ error: 'Technician not found' });
     }
     
-    const result = await global.db.query(
+    const result = await pool.query(
       'UPDATE service_tickets SET assigned_to = $1, status = $2 WHERE id = $3 RETURNING *',
       [technician_id, 'assigned', id]
     );
@@ -212,6 +224,52 @@ router.post('/tickets/:id/reassign', authenticateToken, requireRole(['dealer', '
     });
   } catch (error) {
     console.error('Error reassigning ticket:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /service/battery/:id/tickets - Get all tickets for a specific battery
+router.get('/battery/:id/tickets', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dealerId = req.user.role === 'dealer' ? req.user.userId : null;
+    
+    // Verify battery access
+    let batteryQuery = `
+      SELECT b.*, c.dealer_id 
+      FROM batteries b
+      LEFT JOIN consumers c ON b.owner_id = c.id
+      WHERE b.id = $1
+    `;
+    
+    const batteryResult = await pool.query(batteryQuery, [id]);
+    
+    if (batteryResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Battery not found' });
+    }
+    
+    const battery = batteryResult.rows[0];
+    
+    // Check if dealer has access to this battery
+    if (dealerId && battery.dealer_id !== dealerId) {
+      return res.status(403).json({ error: 'Access denied to this battery' });
+    }
+    
+    // Get all tickets for this battery
+    const ticketsResult = await pool.query(
+      'SELECT * FROM service_tickets WHERE battery_id = $1 ORDER BY created_at DESC',
+      [id]
+    );
+    
+    // Add technician info to tickets
+    const tickets = ticketsResult.rows.map(ticket => ({
+      ...ticket,
+      technician: mockTechnicians.find(t => t.id === ticket.assigned_to) || null
+    }));
+    
+    res.json(tickets);
+  } catch (error) {
+    console.error('Error fetching battery tickets:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

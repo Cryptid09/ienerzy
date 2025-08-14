@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const { pool } = require('../database/setup');
 
 // GET /consumers - List all consumers for dealer
 router.get('/', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
@@ -17,7 +18,7 @@ router.get('/', authenticateToken, requireRole(['dealer', 'admin']), async (req,
     
     query += ' ORDER BY created_at DESC';
     
-    const result = await global.db.query(query, params);
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching consumers:', error);
@@ -38,7 +39,7 @@ router.post('/', authenticateToken, requireRole(['dealer']), async (req, res) =>
     // Mock KYC verification - always returns verified
     const kycStatus = 'verified';
     
-    const result = await global.db.query(
+    const result = await pool.query(
       'INSERT INTO consumers (name, phone, pan, aadhar, kyc_status, dealer_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [name, phone, pan, aadhar, kycStatus, dealerId]
     );
@@ -68,7 +69,7 @@ router.get('/:id', authenticateToken, requireRole(['dealer', 'admin']), async (r
       params.push(dealerId);
     }
     
-    const result = await global.db.query(query, params);
+    const result = await pool.query(query, params);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Consumer not found' });
@@ -98,7 +99,7 @@ router.put('/:id', authenticateToken, requireRole(['dealer', 'admin']), async (r
     
     query += ' RETURNING *';
     
-    const result = await global.db.query(query, params);
+    const result = await pool.query(query, params);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Consumer not found' });
@@ -127,7 +128,7 @@ router.delete('/:id', authenticateToken, requireRole(['dealer', 'admin']), async
     
     query += ' RETURNING *';
     
-    const result = await global.db.query(query, params);
+    const result = await pool.query(query, params);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Consumer not found' });
@@ -156,7 +157,7 @@ router.post('/:id/kyc-verify', authenticateToken, requireRole(['dealer', 'admin'
     
     query += ' RETURNING *';
     
-    const result = await global.db.query(query, params);
+    const result = await pool.query(query, params);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Consumer not found' });
@@ -186,7 +187,7 @@ router.get('/:id/emi-due', async (req, res) => {
       ORDER BY es.due_date ASC
     `;
     
-    const result = await global.db.query(query, [id]);
+    const result = await pool.query(query, [id]);
     
     res.json(result.rows);
   } catch (error) {
@@ -208,7 +209,7 @@ router.get('/:id/batteries', async (req, res) => {
       ORDER BY b.serial_number ASC
     `;
     
-    const result = await global.db.query(query, [id]);
+    const result = await pool.query(query, [id]);
     
     res.json(result.rows);
   } catch (error) {

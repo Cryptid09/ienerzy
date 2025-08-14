@@ -98,12 +98,20 @@ const Batteries = ({ user }) => {
             className="form-input"
           />
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="btn btn-primary"
-        >
-          + Add Battery
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="btn btn-primary"
+          >
+            + Add Battery
+          </button>
+          <a
+            href="/service"
+            className="btn btn-secondary"
+          >
+            📋 Service Tickets
+          </a>
+        </div>
       </div>
 
       <div className="card">

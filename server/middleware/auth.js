@@ -35,4 +35,7 @@ function requireRole(allowedRoles) {
   };
 }
 
-module.exports = { authenticateToken, requireRole }; 
+// Export as default for compatibility
+module.exports = authenticateToken;
+module.exports.authenticateToken = authenticateToken;
+module.exports.requireRole = requireRole; 

@@ -51,7 +51,7 @@
 }
 
 .logout-btn {
-  @apply bg-transparent border border-danger-500 text-danger-500 px-3 py-1.5 rounded-md cursor-pointer transition-all duration-200 hover:bg-danger-500 hover:text-white;
+  @apply bg-transparent border border-red-500 text-red-500 px-3 py-1.5 rounded-md cursor-pointer transition-all duration-200 hover:bg-red-500 hover:text-white;
 }
 
 .page-header {
@@ -78,6 +78,82 @@
   @apply px-3 py-2 border border-gray-300 rounded-md min-w-64;
 }
 
+/* Card and form styling */
+.card {
+  @apply bg-white rounded-lg shadow-md p-6 mb-6;
+}
+
+.btn {
+  @apply px-4 py-2 rounded-md font-medium transition-colors duration-200 cursor-pointer;
+}
+
+.btn-primary {
+  @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+.btn-secondary {
+  @apply bg-gray-600 text-white hover:bg-gray-700 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+}
+
+.btn-success {
+  @apply bg-green-600 text-white hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
+}
+
+.btn-sm {
+  @apply px-3 py-1.5 text-sm;
+}
+
+.btn-lg {
+  @apply px-6 py-3 text-lg;
+}
+
+/* Form styling */
+.form-input {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+}
+
+.form-select {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+}
+
+.form-textarea {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+}
+
+/* Status badges */
+.status-badge {
+  @apply px-2 py-1 text-xs font-medium rounded-full;
+}
+
+.status-active {
+  @apply bg-green-100 text-green-800;
+}
+
+.status-inactive {
+  @apply bg-red-100 text-red-800;
+}
+
+.status-maintenance {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.status-pending {
+  @apply bg-gray-100 text-gray-800;
+}
+
+.status-overdue {
+  @apply bg-red-100 text-red-800;
+}
+
+.status-paid {
+  @apply bg-green-100 text-green-800;
+}
+
+/* Modal styling */
 .modal-overlay {
   @apply fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50;
 }
@@ -102,6 +178,43 @@
   @apply grid grid-cols-2 gap-4;
 }
 
+/* Table styling */
+.table {
+  @apply w-full border-collapse;
+}
+
+.table th {
+  @apply text-left py-3 px-4 font-medium text-gray-700 border-b border-gray-200;
+}
+
+.table td {
+  @apply py-3 px-4 border-b border-gray-100;
+}
+
+.table tbody tr:hover {
+  @apply bg-gray-50;
+}
+
+/* Container */
+.container {
+  @apply max-w-7xl mx-auto px-5 py-8;
+}
+
+/* Loading states */
+.loading {
+  @apply flex items-center justify-center min-h-96;
+}
+
+.loading-text {
+  @apply text-xl text-gray-600;
+}
+
+/* Empty states */
+.empty-state {
+  @apply text-center py-8 text-gray-500;
+}
+
+/* Responsive design */
 @media (max-width: 768px) {
   .form-row {
     @apply grid-cols-1;
@@ -126,6 +239,10 @@
   .navbar-brand {
     @apply text-base;
   }
+  
+  .container {
+    @apply px-4;
+  }
 }
 
 @media (max-width: 640px) {
@@ -135,5 +252,9 @@
   
   .navbar-brand {
     @apply text-sm;
+  }
+  
+  .container {
+    @apply px-3;
   }
 } 

@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from './components/Navbar';
 import Login from './components/Login';
+import Signup from './components/Signup';
 import Dashboard from './components/Dashboard';
 import Batteries from './components/Batteries';
 import Consumers from './components/Consumers';
@@ -77,7 +78,12 @@ function App() {
   }
 
   if (!user) {
-    return <Login onLogin={login} onVerifyOTP={verifyOTP} />;
+    return (
+      <Routes>
+        <Route path="/signup" element={<Signup onSignup={setUser} onSwitchToLogin={() => window.location.href = '/'} />} />
+        <Route path="*" element={<Login onLogin={login} onVerifyOTP={verifyOTP} />} />
+      </Routes>
+    );
   }
 
   return (

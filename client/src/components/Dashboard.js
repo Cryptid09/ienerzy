@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const Dashboard = ({ user }) => {
@@ -11,6 +12,7 @@ const Dashboard = ({ user }) => {
   });
   const [recentBatteries, setRecentBatteries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboardData();
@@ -172,19 +174,28 @@ const Dashboard = ({ user }) => {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-        <div className="card text-center hover:shadow-lg transition-shadow cursor-pointer">
+        <div 
+          className="card text-center hover:shadow-lg transition-shadow cursor-pointer"
+          onClick={() => navigate('/batteries')}
+        >
           <div className="text-4xl mb-3">🔋</div>
           <h3 className="text-lg font-semibold mb-2">Add Battery</h3>
           <p className="text-gray-600 text-sm">Register a new battery in your system</p>
         </div>
         
-        <div className="card text-center hover:shadow-lg transition-shadow cursor-pointer">
+        <div 
+          className="card text-center hover:shadow-lg transition-shadow cursor-pointer"
+          onClick={() => navigate('/consumers')}
+        >
           <div className="text-4xl mb-3">👤</div>
           <h3 className="text-lg font-semibold mb-2">Add Consumer</h3>
           <p className="text-gray-600 text-sm">Onboard a new consumer customer</p>
         </div>
         
-        <div className="card text-center hover:shadow-lg transition-shadow cursor-pointer">
+        <div 
+          className="card text-center hover:shadow-lg transition-shadow cursor-pointer"
+          onClick={() => navigate('/service')}
+        >
           <div className="text-4xl mb-3">📋</div>
           <h3 className="text-lg font-semibold mb-2">Create Ticket</h3>
           <p className="text-gray-600 text-sm">Open a new service ticket</p>
