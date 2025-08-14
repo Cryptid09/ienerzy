@@ -5,7 +5,7 @@
       "src": "client/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "client/build"
+        "distDir": "build"
       }
     }
   ],
@@ -22,6 +22,5 @@
   "env": {
     "REACT_APP_API_URL": "https://ienerzy.onrender.com"
   },
-  "buildCommand": "cd client && npm install && npm run build",
-  "outputDirectory": "client/build"
+  "buildCommand": "cd client && npm install && npm run build"
 } 
