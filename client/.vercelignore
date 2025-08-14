@@ -1,0 +1,17 @@
+# Ignore unnecessary files
+node_modules/
+.git/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Keep these important files
+!package.json
+!package-lock.json
+!public/
+!src/
+!vercel.json
+!tailwind.config.js
+!postcss.config.js 
