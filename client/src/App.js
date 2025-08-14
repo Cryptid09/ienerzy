@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from './components/Navbar';
 import Login from './components/Login';
@@ -13,106 +13,124 @@ import ConsumerView from './components/ConsumerView';
 import MessagingTest from './components/MessagingTest';
 import './App.css';
 
-// Set default axios base URL
-axios.defaults.baseURL = 'http://localhost:5000/api';
+// Set API base URL for Render backend
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://ienerzy.onrender.com';
+axios.defaults.baseURL = `${API_BASE_URL}/api`;
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
+    // Check if user is logged in
     const token = localStorage.getItem('token');
     if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      checkAuthStatus();
+      // Verify token with backend
+      axios.get('/auth/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(response => {
+        setUser(response.data);
+      })
+      .catch(() => {
+        localStorage.removeItem('token');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
     } else {
       setLoading(false);
     }
   }, []);
 
-  const checkAuthStatus = async () => {
-    try {
-      const response = await axios.get('/auth/me');
-      setUser(response.data.user);
-    } catch (error) {
-      localStorage.removeItem('token');
-      delete axios.defaults.headers.common['Authorization'];
-    } finally {
-      setLoading(false);
-    }
+  const handleLogin = (userData) => {
+    setUser(userData);
   };
 
-  const login = async (phone, userType) => {
-    try {
-      const response = await axios.post('/auth/login', { phone, userType });
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { error: 'Login failed' };
-    }
-  };
-
-  const verifyOTP = async (phone, otp, userType) => {
-    try {
-      const response = await axios.post('/auth/verify-otp', { phone, otp, userType });
-      const { token, user } = response.data;
-      
-      localStorage.setItem('token', token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setUser(user);
-      
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { error: 'OTP verification failed' };
-    }
-  };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
+  const handleLogout = () => {
     setUser(null);
+    localStorage.removeItem('token');
   };
 
   if (loading) {
-    return <div className="container">Loading...</div>;
-  }
-
-  if (!user) {
     return (
-      <Routes>
-        <Route path="/signup" element={<Signup onSignup={setUser} onSwitchToLogin={() => window.location.href = '/'} />} />
-        <Route path="*" element={<Login onLogin={login} onVerifyOTP={verifyOTP} />} />
-      </Routes>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-xl text-gray-600">Loading...</div>
+      </div>
     );
   }
 
   return (
-    <div className="App">
-      <Navbar user={user} onLogout={logout} />
-      <div className="container">
-        <Routes>
-          {user.role === 'consumer' ? (
-            // Consumer Routes
-            <>
-              <Route path="/" element={<ConsumerView user={user} />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </>
-          ) : (
-            // Dealer/Admin Routes
-            <>
-              <Route path="/" element={<Dashboard user={user} />} />
-              <Route path="/batteries" element={<Batteries user={user} />} />
-              <Route path="/consumers" element={<Consumers user={user} />} />
-              <Route path="/finance" element={<Finance user={user} />} />
-              <Route path="/service" element={<Service user={user} />} />
-              <Route path="/messaging" element={<MessagingTest />} />
-              <Route path="/consumer-view" element={<ConsumerView user={user} />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </>
-          )}
-        </Routes>
+    <Router>
+      <div className="App">
+        {user && <Navbar user={user} onLogout={handleLogout} />}
+        
+        <div className="main-content">
+          <Routes>
+            <Route 
+              path="/" 
+              element={
+                user ? <Navigate to="/dashboard" /> : <Login onLogin={handleLogin} />
+              } 
+            />
+            <Route 
+              path="/login" 
+              element={
+                user ? <Navigate to="/dashboard" /> : <Login onLogin={handleLogin} />
+              } 
+            />
+            <Route 
+              path="/signup" 
+              element={
+                user ? <Navigate to="/dashboard" /> : <Signup onLogin={handleLogin} />
+              } 
+            />
+            <Route 
+              path="/dashboard" 
+              element={
+                user ? <Dashboard user={user} /> : <Navigate to="/login" />
+              } 
+            />
+            <Route 
+              path="/batteries" 
+              element={
+                user ? <Batteries user={user} /> : <Navigate to="/login" />
+              } 
+            />
+            <Route 
+              path="/consumers" 
+              element={
+                user ? <Consumers user={user} /> : <Navigate to="/login" />
+              } 
+            />
+            <Route 
+              path="/finance" 
+              element={
+                user ? <Finance user={user} /> : <Navigate to="/login" />
+              } 
+            />
+            <Route 
+              path="/service" 
+              element={
+                user ? <Service user={user} /> : <Navigate to="/login" />
+              } 
+            />
+            <Route 
+              path="/consumer-view" 
+              element={
+                user ? <ConsumerView user={user} /> : <Navigate to="/login" />
+              } 
+            />
+            <Route 
+              path="/messaging" 
+              element={
+                user ? <MessagingTest user={user} /> : <Navigate to="/login" />
+              } 
+            />
+          </Routes>
+        </div>
       </div>
-    </div>
+    </Router>
   );
 }
 

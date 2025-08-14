@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 
-const Login = ({ onLogin, onVerifyOTP }) => {
+const Login = ({ onLogin }) => {
   const [phone, setPhone] = useState('');
+  const [userType, setUserType] = useState('consumer');
   const [otp, setOtp] = useState('');
   const [showOTP, setShowOTP] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [userType, setUserType] = useState('dealer'); // 'dealer' or 'consumer'
-  const [smsStatus, setSmsStatus] = useState(''); // Track SMS delivery status
+  const [smsStatus, setSmsStatus] = useState('');
 
-  const handleLogin = async (e) => {
+  const handleSendOTP = async (e) => {
     e.preventDefault();
     if (!phone) {
-      setError('Please enter phone number');
+      setError('Please enter a phone number');
       return;
     }
 
@@ -23,26 +24,21 @@ const Login = ({ onLogin, onVerifyOTP }) => {
     setSmsStatus('');
 
     try {
-      const response = await onLogin(phone, userType);
-      if (response.success) {
+      const response = await axios.post('/auth/login', { phone, userType });
+      
+      if (response.data.smsSid) {
+        setSuccess('OTP sent successfully via SMS!');
+        setSmsStatus('SMS delivered');
         setShowOTP(true);
-        
-        // Handle different response scenarios
-        if (response.smsSid) {
-          setSuccess('✅ OTP sent successfully via SMS!');
-          setSmsStatus(`📱 SMS delivered (ID: ${response.smsSid})`);
-          console.log(`✅ OTP sent via SMS to ${phone}. SID: ${response.smsSid}`);
-        } else if (response.otp) {
-          setSuccess('⚠️ OTP generated but SMS delivery failed. Check console for OTP.');
-          setSmsStatus('❌ SMS delivery failed - using fallback OTP');
-          console.log(`⚠️ Fallback OTP for ${userType} ${phone}: ${response.otp}`);
-        } else {
-          setSuccess('✅ OTP sent successfully!');
-          console.log(`✅ OTP sent to ${phone}`);
-        }
+      } else if (response.data.otp) {
+        setSuccess(`OTP sent! Check console for: ${response.data.otp}`);
+        setSmsStatus('Console fallback');
+        setShowOTP(true);
+      } else {
+        setError('Failed to send OTP');
       }
     } catch (error) {
-      setError(error.error || 'Login failed');
+      setError(error.response?.data?.error || 'Failed to send OTP');
     } finally {
       setLoading(false);
     }
@@ -51,7 +47,7 @@ const Login = ({ onLogin, onVerifyOTP }) => {
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
     if (!otp) {
-      setError('Please enter OTP');
+      setError('Please enter the OTP');
       return;
     }
 
@@ -59,26 +55,47 @@ const Login = ({ onLogin, onVerifyOTP }) => {
     setError('');
 
     try {
-      await onVerifyOTP(phone, otp, userType);
+      const response = await axios.post('/auth/verify-otp', { phone, otp, userType });
+      
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        onLogin(response.data.user);
+        setSuccess('Login successful!');
+      } else {
+        setError('Invalid OTP');
+      }
     } catch (error) {
-      setError(error.error || 'OTP verification failed');
+      setError(error.response?.data?.error || 'OTP verification failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setPhone('');
-    setOtp('');
-    setShowOTP(false);
+  const handleResendOTP = async () => {
+    setLoading(true);
     setError('');
-    setSuccess('');
-    setSmsStatus('');
-    setUserType('dealer');
+    
+    try {
+      const response = await axios.post('/auth/resend-otp', { phone, userType });
+      
+      if (response.data.smsSid) {
+        setSuccess('OTP resent successfully!');
+        setSmsStatus('SMS delivered');
+      } else if (response.data.otp) {
+        setSuccess(`OTP resent! Check console for: ${response.data.otp}`);
+        setSmsStatus('Console fallback');
+      } else {
+        setError('Failed to resend OTP');
+      }
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to resend OTP');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
@@ -88,36 +105,27 @@ const Login = ({ onLogin, onVerifyOTP }) => {
             Battery Management System
           </p>
         </div>
-
-        {/* User Type Selector */}
-        <div className="flex rounded-md shadow-sm">
-          <button
-            type="button"
-            onClick={() => setUserType('dealer')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-l-md border ${
-              userType === 'dealer'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            Dealer/Admin
-          </button>
-          <button
-            type="button"
-            onClick={() => setUserType('consumer')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-r-md border ${
-              userType === 'consumer'
-                ? 'bg-green-600 text-white border-green-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            Consumer
-          </button>
-        </div>
-
-        <div className="bg-white py-8 px-6 shadow rounded-lg">
+        
+        <div className="mt-8 space-y-6">
           {!showOTP ? (
-            <form onSubmit={handleLogin} className="space-y-6">
+            <form onSubmit={handleSendOTP} className="space-y-6">
+              <div>
+                <label htmlFor="userType" className="block text-sm font-medium text-gray-700">
+                  User Type
+                </label>
+                <select
+                  id="userType"
+                  value={userType}
+                  onChange={(e) => setUserType(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="consumer">Consumer</option>
+                  <option value="dealer">Dealer</option>
+                  <option value="admin">Admin</option>
+                  <option value="nbfc">NBFC</option>
+                </select>
+              </div>
+
               <div>
                 <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
                   Phone Number
@@ -126,31 +134,22 @@ const Login = ({ onLogin, onVerifyOTP }) => {
                   id="phone"
                   name="phone"
                   type="tel"
-                  required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder={userType === 'dealer' ? '8888888888' : '9340968955'}
+                  placeholder={userType === 'consumer' ? '9340968955' : '8888888888'}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  {userType === 'dealer' 
-                    ? 'Demo: 8888888888 (Dealer) or 9999999999 (Admin)'
-                    : 'Demo: 9340968955 (Consumer)'
-                  }
-                </p>
               </div>
 
-              {error && (
-                <div className="text-red-600 text-sm text-center">{error}</div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                {loading ? '📱 Sending OTP via SMS...' : '📱 Send OTP via SMS'}
-              </button>
+              <div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {loading ? 'Sending...' : 'Send OTP'}
+                </button>
+              </div>
             </form>
           ) : (
             <form onSubmit={handleVerifyOTP} className="space-y-6">
@@ -162,72 +161,67 @@ const Login = ({ onLogin, onVerifyOTP }) => {
                   id="otp"
                   name="otp"
                   type="text"
-                  required
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="123456"
-                  maxLength="6"
+                  placeholder="Enter 6-digit OTP"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  {smsStatus ? 'Check your phone for SMS' : 'Enter the 6-digit OTP'}
-                </p>
               </div>
-
-              {success && (
-                <div className="text-green-600 text-sm text-center bg-green-50 p-2 rounded">{success}</div>
-              )}
-
-              {smsStatus && (
-                <div className="text-blue-600 text-xs text-center bg-blue-50 p-2 rounded">{smsStatus}</div>
-              )}
-
-              {error && (
-                <div className="text-red-600 text-sm text-center">{error}</div>
-              )}
 
               <div className="flex space-x-3">
                 <button
-                  type="button"
-                  onClick={resetForm}
-                  className="flex-1 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Back
-                </button>
-                <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  className="flex-1 py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                 >
-                  {loading ? '🔐 Verifying...' : '🔐 Verify OTP'}
+                  {loading ? 'Verifying...' : 'Verify OTP'}
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={handleResendOTP}
+                  disabled={loading}
+                  className="flex-1 py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  Resend
                 </button>
               </div>
             </form>
           )}
-        </div>
 
-        <div className="text-center">
-          <p className="text-xs text-gray-500">
-            {userType === 'dealer' 
-              ? 'Login as dealer or admin to manage batteries and consumers'
-              : 'Login as consumer to view battery health and manage EMIs'
-            }
-          </p>
-          {showOTP && (
-            <p className="text-xs text-blue-600 mt-2">
-              💡 OTP sent via Twilio SMS • Valid for 5 minutes
-            </p>
-          )}
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
-              <button
-                onClick={() => window.location.href = '/signup'}
+          {!showOTP && (
+            <div className="text-center">
+              <a
+                href="/signup"
                 className="font-medium text-blue-600 hover:text-blue-500"
               >
-                Sign up here
-              </button>
-            </p>
+                Don't have an account? Sign up here
+              </a>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+              {success}
+              {smsStatus && (
+                <div className="text-sm text-green-600 mt-1">
+                  Status: {smsStatus}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="text-center text-sm text-gray-600">
+            <p>Demo Credentials:</p>
+            <p><strong>Consumer:</strong> 9340968955</p>
+            <p><strong>Dealer:</strong> 8888888888</p>
+            <p><strong>Admin:</strong> 9999999999</p>
           </div>
         </div>
       </div>
