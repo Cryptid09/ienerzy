@@ -44,15 +44,25 @@ const Batteries = ({ user }) => {
 
   const handleStatusChange = async (serial, action) => {
     try {
+      console.log('=== CLIENT STATUS CHANGE DEBUG ===');
       console.log('Sending status change request:', { serial, action });
+      console.log('Request payload:', { action });
+      console.log('Request URL:', `/batteries/${serial}/control`);
+      
       const response = await axios.post(`/batteries/${serial}/control`, { action });
-      console.log('Status change response:', response.data);
+      console.log('✅ Status change response:', response.data);
+      console.log('=== END CLIENT DEBUG ===');
+      
       fetchBatteries();
     } catch (error) {
-      // Error updating battery status
-      console.error('Error updating battery status:', error);
+      console.error('=== CLIENT ERROR DEBUG ===');
+      console.error('❌ Error updating battery status:', error);
       console.error('Error response:', error.response?.data);
       console.error('Error status:', error.response?.status);
+      console.error('Error message:', error.message);
+      console.error('Full error object:', error);
+      console.error('=== END ERROR DEBUG ===');
+      
       alert(`Failed to update battery status: ${error.response?.data?.error || error.message}`);
     }
   };
