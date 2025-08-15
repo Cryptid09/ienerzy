@@ -1,0 +1,15 @@
+{
+  "name": "ienerzy-dealer-battery-mvp",
+  "version": "1.0.0",
+  "description": "Dealer & Battery Management MVP for 24-hour hackathon",
+  "scripts": {
+    "dev": "./dev.sh",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm start",
+    "install": "cd server && npm install && cd ../client && npm install",
+    "setup-db": "cd server && npm run setup-db"
+  },
+  "keywords": ["battery", "dealer", "management", "mvp"],
+  "author": "Hackathon Team",
+  "license": "MIT"
+} 
