@@ -44,10 +44,16 @@ const Batteries = ({ user }) => {
 
   const handleStatusChange = async (serial, action) => {
     try {
-      await axios.post(`/batteries/${serial}/control`, { action });
+      console.log('Sending status change request:', { serial, action });
+      const response = await axios.post(`/batteries/${serial}/control`, { action });
+      console.log('Status change response:', response.data);
       fetchBatteries();
     } catch (error) {
       // Error updating battery status
+      console.error('Error updating battery status:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      alert(`Failed to update battery status: ${error.response?.data?.error || error.message}`);
     }
   };
 
