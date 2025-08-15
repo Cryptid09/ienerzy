@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 const ConsumerView = ({ user }) => {
@@ -8,11 +8,7 @@ const ConsumerView = ({ user }) => {
   const [selectedBattery, setSelectedBattery] = useState(null);
   const [telemetry, setTelemetry] = useState(null);
 
-  useEffect(() => {
-    fetchConsumerData();
-  }, []);
-
-  const fetchConsumerData = async () => {
+  const fetchConsumerData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -40,7 +36,11 @@ const ConsumerView = ({ user }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user.role, user.id]);
+
+  useEffect(() => {
+    fetchConsumerData();
+  }, [fetchConsumerData]);
 
   const handleViewBattery = async (battery) => {
     try {

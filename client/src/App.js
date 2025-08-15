@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from './components/Navbar';
 import Login from './components/Login';
@@ -88,12 +88,11 @@ function App() {
   }
 
   return (
-    <Router>
-      <div className="App">
-        {user && <Navbar user={user} onLogout={handleLogout} />}
-        
-        <div className="main-content">
-          <Routes key={user ? 'authenticated' : 'unauthenticated'}>
+    <div className="App">
+      {user && <Navbar user={user} onLogout={handleLogout} />}
+      
+      <div className="main-content">
+        <Routes key={user ? 'authenticated' : 'unauthenticated'}>
             {/* Public Routes */}
             <Route 
               path="/" 
@@ -190,8 +189,7 @@ function App() {
           </Routes>
         </div>
       </div>
-    </Router>
-  );
+    );
 }
 
 export default App; 
