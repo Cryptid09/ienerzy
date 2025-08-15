@@ -23,7 +23,7 @@ const Batteries = ({ user }) => {
       const response = await axios.get('/batteries');
       setBatteries(response.data);
     } catch (error) {
-      console.error('Error fetching batteries:', error);
+      // Error fetching batteries
     } finally {
       setLoading(false);
     }
@@ -37,7 +37,7 @@ const Batteries = ({ user }) => {
       setFormData({ serial_number: '', health_score: 100 });
       fetchBatteries();
     } catch (error) {
-      console.error('Error adding battery:', error);
+      // Error adding battery
       alert(error.response?.data?.error || 'Failed to add battery');
     }
   };
@@ -47,7 +47,7 @@ const Batteries = ({ user }) => {
       await axios.post(`/batteries/${serial}/control`, { action });
       fetchBatteries();
     } catch (error) {
-      console.error('Error updating battery status:', error);
+      // Error updating battery status
     }
   };
 
@@ -58,7 +58,7 @@ const Batteries = ({ user }) => {
       setTelemetry(response.data.telemetry);
       setShowTelemetryModal(true);
     } catch (error) {
-      console.error('Error fetching telemetry:', error);
+      // Error fetching telemetry
     }
   };
 

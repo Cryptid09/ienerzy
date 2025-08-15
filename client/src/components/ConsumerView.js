@@ -36,19 +36,7 @@ const ConsumerView = ({ user }) => {
         setEmiDue(emiRes.data);
       }
     } catch (error) {
-      console.error('Error fetching consumer data:', error);
-      // If specific consumer endpoints don't exist, fall back to showing all data
-      try {
-        const [batteriesRes, emiRes] = await Promise.all([
-          axios.get('/batteries'),
-          axios.get('/finance/emi-due')
-        ]);
-        
-        setBatteries(batteriesRes.data);
-        setEmiDue(emiRes.data);
-      } catch (fallbackError) {
-        console.error('Fallback data fetch failed:', fallbackError);
-      }
+      // Error fetching consumer data
     } finally {
       setLoading(false);
     }
@@ -60,7 +48,7 @@ const ConsumerView = ({ user }) => {
       setSelectedBattery(response.data.battery);
       setTelemetry(response.data.telemetry);
     } catch (error) {
-      console.error('Error fetching battery details:', error);
+      // Error fetching battery details
     }
   };
 
@@ -70,8 +58,7 @@ const ConsumerView = ({ user }) => {
       fetchConsumerData();
       alert('EMI payment successful!');
     } catch (error) {
-      console.error('Error processing EMI payment:', error);
-      alert('Payment failed. Please try again.');
+      // Error processing EMI payment
     }
   };
 

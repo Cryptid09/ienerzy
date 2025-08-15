@@ -22,7 +22,7 @@ const Consumers = ({ user }) => {
       const response = await axios.get('/consumers');
       setConsumers(response.data);
     } catch (error) {
-      console.error('Error fetching consumers:', error);
+      // Error fetching consumers
     } finally {
       setLoading(false);
     }
@@ -36,7 +36,7 @@ const Consumers = ({ user }) => {
       setFormData({ name: '', phone: '', pan: '', aadhar: '' });
       fetchConsumers();
     } catch (error) {
-      console.error('Error adding consumer:', error);
+      // Error adding consumer
       alert(error.response?.data?.error || 'Failed to add consumer');
     }
   };

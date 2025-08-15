@@ -30,7 +30,7 @@ const Service = ({ user }) => {
       setTickets(ticketsRes.data);
       setBatteries(batteriesRes.data);
     } catch (error) {
-      console.error('Error fetching service data:', error);
+      // Error fetching service data
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,6 @@ const Service = ({ user }) => {
       setFormData({ battery_id: '', issue_category: '', description: '', location: '' });
       fetchData();
     } catch (error) {
-      console.error('Error adding ticket:', error);
       alert(error.response?.data?.error || 'Failed to add ticket');
     }
   };
@@ -57,7 +56,7 @@ const Service = ({ user }) => {
         fetchBatteryTickets(selectedBattery.id);
       }
     } catch (error) {
-      console.error('Error updating ticket status:', error);
+      // Error updating ticket status
     }
   };
 
@@ -67,7 +66,7 @@ const Service = ({ user }) => {
       setBatteryTickets(response.data);
       setSelectedBattery(batteries.find(b => b.id === batteryId));
     } catch (error) {
-      console.error('Error fetching battery tickets:', error);
+      // Error fetching battery tickets
     }
   };
 

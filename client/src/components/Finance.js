@@ -33,7 +33,7 @@ const Finance = ({ user }) => {
       setConsumers(consumersRes.data);
       setBatteries(batteriesRes.data);
     } catch (error) {
-      console.error('Error fetching finance data:', error);
+      // Error fetching finance data
     } finally {
       setLoading(false);
     }
@@ -47,7 +47,7 @@ const Finance = ({ user }) => {
       setFormData({ consumer_id: '', battery_id: '', amount: '' });
       fetchData();
     } catch (error) {
-      console.error('Error adding application:', error);
+      // Error adding application
       alert(error.response?.data?.error || 'Failed to add application');
     }
   };
@@ -57,7 +57,7 @@ const Finance = ({ user }) => {
       await axios.post('/finance/emi-payment', { emi_id: emiId, payment_amount: amount });
       fetchData();
     } catch (error) {
-      console.error('Error processing EMI payment:', error);
+      // Error processing EMI payment
     }
   };
 
