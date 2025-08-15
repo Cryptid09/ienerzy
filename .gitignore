@@ -104,7 +104,8 @@ dist
 
 # Gatsby files
 .cache/
-public
+# Global public folder (but allow client/public)
+/public
 
 # Vuepress build output
 .vuepress/dist
@@ -195,4 +196,8 @@ out/
 
 # Optional: Uncomment if you want to ignore specific files
 # server/uploads/
-# client/public/uploads/ 
+# client/public/uploads/
+
+# Allow client/public folder (React needs this)
+!client/public/
+!client/public/* 
