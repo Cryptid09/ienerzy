@@ -7,6 +7,10 @@ A complete, production-ready battery management system built for the energy sect
 - **Backend API:** [Deploy on Render](https://render.com) (Free Tier)
 - **Frontend:** [Deploy on Netlify/Vercel](https://netlify.com) (Free Tier)
 
+## 🛠️ **Local Development**
+
+For local development setup, see [DEVELOPMENT-SETUP.md](DEVELOPMENT-SETUP.md)
+
 ## ✨ **Features**
 
 ### 🔐 **Authentication & Security**

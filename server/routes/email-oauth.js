@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const emailServiceOAuth = require('../services/email-oauth');
-const auth = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * @route   GET /api/email/oauth/auth
  * @desc    Get OAuth 2.0 authorization URL
  * @access  Private
  */
-router.get('/auth', auth, async (req, res) => {
+router.get('/auth', authenticateToken, async (req, res) => {
   try {
     const authUrl = emailServiceOAuth.getAuthUrl();
     res.json({
@@ -76,7 +76,7 @@ router.get('/callback', async (req, res) => {
  * @desc    Get OAuth 2.0 email service status
  * @access  Private
  */
-router.get('/status', auth, async (req, res) => {
+router.get('/status', authenticateToken, async (req, res) => {
   try {
     const status = emailServiceOAuth.getStatus();
     res.json({
@@ -97,7 +97,7 @@ router.get('/status', auth, async (req, res) => {
  * @desc    Send test email using OAuth 2.0
  * @access  Private
  */
-router.post('/test', auth, async (req, res) => {
+router.post('/test', authenticateToken, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -134,7 +134,7 @@ router.post('/test', auth, async (req, res) => {
  * @desc    Send EMI reminder email using OAuth 2.0
  * @access  Private
  */
-router.post('/emi-reminder', auth, async (req, res) => {
+router.post('/emi-reminder', authenticateToken, async (req, res) => {
   try {
     const { email, emiData } = req.body;
 
@@ -171,7 +171,7 @@ router.post('/emi-reminder', auth, async (req, res) => {
  * @desc    Send service ticket status update email using OAuth 2.0
  * @access  Private
  */
-router.post('/ticket-update', auth, async (req, res) => {
+router.post('/ticket-update', authenticateToken, async (req, res) => {
   try {
     const { email, ticketData } = req.body;
 
@@ -208,7 +208,7 @@ router.post('/ticket-update', auth, async (req, res) => {
  * @desc    Send finance approval email using OAuth 2.0
  * @access  Private
  */
-router.post('/finance-approval', auth, async (req, res) => {
+router.post('/finance-approval', authenticateToken, async (req, res) => {
   try {
     const { email, financeData } = req.body;
 
@@ -245,7 +245,7 @@ router.post('/finance-approval', auth, async (req, res) => {
  * @desc    Send finance rejection email using OAuth 2.0
  * @access  Private
  */
-router.post('/finance-rejection', auth, async (req, res) => {
+router.post('/finance-rejection', authenticateToken, async (req, res) => {
   try {
     const { email, financeData } = req.body;
 

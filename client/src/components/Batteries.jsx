@@ -99,12 +99,15 @@ const Batteries = ({ user }) => {
           />
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="btn btn-primary"
-          >
-            + Add Battery
-          </button>
+          {/* Only dealers and admins can add batteries */}
+          {(user.role === 'dealer' || user.role === 'admin') && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="btn btn-primary"
+            >
+              + Add Battery
+            </button>
+          )}
           <a
             href="/service"
             className="btn btn-secondary"
@@ -157,15 +160,22 @@ const Batteries = ({ user }) => {
                       >
                         Telemetry
                       </button>
-                      <select
-                        value={battery.status}
-                        onChange={(e) => handleStatusChange(battery.serial_number, e.target.value)}
-                        className="form-input text-xs py-1"
-                      >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                        <option value="maintenance">Maintenance</option>
-                      </select>
+                      {/* Only dealers and admins can change battery status */}
+                      {(user.role === 'dealer' || user.role === 'admin') ? (
+                        <select
+                          value={battery.status}
+                          onChange={(e) => handleStatusChange(battery.serial_number, e.target.value)}
+                          className="form-input text-xs py-1"
+                        >
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                          <option value="maintenance">Maintenance</option>
+                        </select>
+                      ) : (
+                        <span className={`status-badge ${getStatusColor(battery.status)}`}>
+                          {battery.status}
+                        </span>
+                      )}
                     </div>
                   </td>
                 </tr>

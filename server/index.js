@@ -11,6 +11,8 @@ const serviceRoutes = require('./routes/service');
 const messagingRoutes = require('./routes/messaging');
 const emailRoutes = require('./routes/email');
 const emailOAuthRoutes = require('./routes/email-oauth');
+const nbfcRoutes = require('./routes/nbfc');
+const analyticsRoutes = require('./routes/analytics');
 const { setupDatabase } = require('./database/setup');
 
 const app = express();
@@ -28,6 +30,8 @@ app.use('/api/service', serviceRoutes);
 app.use('/api/messaging', messagingRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/email/oauth', emailOAuthRoutes);
+app.use('/api/nbfc', nbfcRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Health check endpoint for Render
 app.get('/health', (req, res) => {

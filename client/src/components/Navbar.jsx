@@ -17,7 +17,11 @@ const Navbar = ({ user, onLogout }) => {
     { path: '/finance', label: 'Finance', roles: ['dealer', 'admin'] },
     { path: '/service', label: 'Service', roles: ['dealer', 'admin'] },
     { path: '/messaging', label: 'Messaging', roles: ['dealer', 'admin'] },
-    { path: '/consumer-view', label: 'Consumer View', roles: ['dealer', 'admin'] }
+    { path: '/consumer-view', label: 'Consumer View', roles: ['dealer', 'admin'] },
+    // NBFC navigation - only for NBFC and admin
+    { path: '/nbfc', label: 'NBFC', roles: ['nbfc', 'admin'] },
+    // Analytics navigation - for all business users
+    { path: '/analytics', label: 'Analytics', roles: ['dealer', 'admin', 'nbfc'] }
   ];
 
   const filteredNavItems = navItems.filter(item => 
@@ -84,7 +88,9 @@ const Navbar = ({ user, onLogout }) => {
               <NavLink 
                 to={item.path}
                 className={({ isActive }) => 
-                  isActive ? 'active' : ''
+                  `px-3 py-2 rounded-md transition-colors duration-200 ${
+                    isActive ? 'text-white bg-white/10' : 'text-gray-300 hover:text-white hover:bg-white/10'
+                  }`
                 }
               >
                 {item.label}

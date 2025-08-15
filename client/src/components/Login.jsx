@@ -59,6 +59,10 @@ const Login = ({ onLogin }) => {
       
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
+        // Set default Authorization header immediately
+        try {
+          axios.defaults.headers.common.Authorization = `Bearer ${response.data.token}`;
+        } catch (_) {}
         onLogin(response.data.user);
         setSuccess('Login successful!');
       } else {

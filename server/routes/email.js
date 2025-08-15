@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const emailService = require('../services/email');
-const auth = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * @route   GET /api/email/status
  * @desc    Get email service status
  * @access  Private
  */
-router.get('/status', auth, async (req, res) => {
+router.get('/status', authenticateToken, async (req, res) => {
   try {
     const status = emailService.getStatus();
     res.json({
@@ -29,7 +29,7 @@ router.get('/status', auth, async (req, res) => {
  * @desc    Send test email
  * @access  Private
  */
-router.post('/send-test', auth, async (req, res) => {
+router.post('/send-test', authenticateToken, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -65,7 +65,7 @@ router.post('/send-test', auth, async (req, res) => {
  * @desc    Send EMI reminder email
  * @access  Private
  */
-router.post('/emi-reminder', auth, async (req, res) => {
+router.post('/emi-reminder', authenticateToken, async (req, res) => {
   try {
     const { email, emiData } = req.body;
 
@@ -101,7 +101,7 @@ router.post('/emi-reminder', auth, async (req, res) => {
  * @desc    Send service ticket status update email
  * @access  Private
  */
-router.post('/ticket-update', auth, async (req, res) => {
+router.post('/ticket-update', authenticateToken, async (req, res) => {
   try {
     const { email, ticketData } = req.body;
 
@@ -137,7 +137,7 @@ router.post('/ticket-update', auth, async (req, res) => {
  * @desc    Send finance approval email
  * @access  Private
  */
-router.post('/finance-approval', auth, async (req, res) => {
+router.post('/finance-approval', authenticateToken, async (req, res) => {
   try {
     const { email, financeData } = req.body;
 
@@ -173,7 +173,7 @@ router.post('/finance-approval', auth, async (req, res) => {
  * @desc    Send finance rejection email
  * @access  Private
  */
-router.post('/finance-rejection', auth, async (req, res) => {
+router.post('/finance-rejection', authenticateToken, async (req, res) => {
   try {
     const { email, financeData } = req.body;
 
@@ -209,7 +209,7 @@ router.post('/finance-rejection', auth, async (req, res) => {
  * @desc    Send custom email
  * @access  Private
  */
-router.post('/send-custom', auth, async (req, res) => {
+router.post('/send-custom', authenticateToken, async (req, res) => {
   try {
     const { email, subject, message } = req.body;
 

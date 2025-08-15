@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const messagingService = require('../services/messaging');
-const auth = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * @route   GET /api/messaging/status
  * @desc    Get messaging service status
  * @access  Private
  */
-router.get('/status', auth, async (req, res) => {
+router.get('/status', authenticateToken, async (req, res) => {
   try {
     const status = messagingService.getStatus();
     res.json({
@@ -29,7 +29,7 @@ router.get('/status', auth, async (req, res) => {
  * @desc    Send SMS message
  * @access  Private
  */
-router.post('/send-sms', auth, async (req, res) => {
+router.post('/send-sms', authenticateToken, async (req, res) => {
   try {
     const { phoneNumber, message } = req.body;
 
@@ -66,7 +66,7 @@ router.post('/send-sms', auth, async (req, res) => {
  * @desc    Send OTP verification SMS
  * @access  Private
  */
-router.post('/send-otp', auth, async (req, res) => {
+router.post('/send-otp', authenticateToken, async (req, res) => {
   try {
     const { phoneNumber, otp } = req.body;
 
@@ -102,7 +102,7 @@ router.post('/send-otp', auth, async (req, res) => {
  * @desc    Send battery status notification
  * @access  Private
  */
-router.post('/battery-status', auth, async (req, res) => {
+router.post('/battery-status', authenticateToken, async (req, res) => {
   try {
     const { phoneNumber, batteryData } = req.body;
 
@@ -138,7 +138,7 @@ router.post('/battery-status', auth, async (req, res) => {
  * @desc    Send service ticket notification
  * @access  Private
  */
-router.post('/service-notification', auth, async (req, res) => {
+router.post('/service-notification', authenticateToken, async (req, res) => {
   try {
     const { phoneNumber, ticketData } = req.body;
 
@@ -174,7 +174,7 @@ router.post('/service-notification', auth, async (req, res) => {
  * @desc    Send payment reminder
  * @access  Private
  */
-router.post('/payment-reminder', auth, async (req, res) => {
+router.post('/payment-reminder', authenticateToken, async (req, res) => {
   try {
     const { phoneNumber, paymentData } = req.body;
 
@@ -210,7 +210,7 @@ router.post('/payment-reminder', auth, async (req, res) => {
  * @desc    Test messaging service (for development)
  * @access  Private
  */
-router.post('/test', auth, async (req, res) => {
+router.post('/test', authenticateToken, async (req, res) => {
   try {
     const { phoneNumber } = req.body;
 

@@ -77,12 +77,15 @@ const Consumers = ({ user }) => {
             className="form-input"
           />
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="btn btn-primary"
-        >
-          + Add Consumer
-        </button>
+        {/* Only dealers and admins can add consumers */}
+        {(user.role === 'dealer' || user.role === 'admin') && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="btn btn-primary"
+          >
+            + Add Consumer
+          </button>
+        )}
       </div>
 
       <div className="card">

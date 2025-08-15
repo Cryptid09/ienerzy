@@ -11,11 +11,26 @@ import Finance from './components/Finance';
 import Service from './components/Service';
 import ConsumerView from './components/ConsumerView';
 import MessagingTest from './components/MessagingTest';
+import NBFC from './components/NBFC';
+import Analytics from './components/Analytics';
 import './App.css';
 
-// Set API base URL for Render backend
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://ienerzy.onrender.com';
+// Set API base URL - use localhost in development, Render in production
+const API_BASE_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : 'https://ienerzy.onrender.com');
 axios.defaults.baseURL = `${API_BASE_URL}/api`;
+
+// Attach JWT token from localStorage to every request
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 // Protected Route Component
 function ProtectedRoute({ children, user }) {
@@ -77,6 +92,9 @@ function App() {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('token');
+    try {
+      delete axios.defaults.headers.common.Authorization;
+    } catch (_) {}
   };
 
   if (loading) {
@@ -173,6 +191,22 @@ function App() {
               element={
                 <ProtectedRoute user={user}>
                   <MessagingTest user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/nbfc" 
+              element={
+                <ProtectedRoute user={user}>
+                  <NBFC user={user} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/analytics" 
+              element={
+                <ProtectedRoute user={user}>
+                  <Analytics user={user} />
                 </ProtectedRoute>
               } 
             />

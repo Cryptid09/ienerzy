@@ -80,14 +80,36 @@ async function createTables() {
       )
     `);
 
-    // EMI schedules table
+    // NBFC applications table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS nbfc_applications (
+        id SERIAL PRIMARY KEY,
+        consumer_id INTEGER REFERENCES consumers(id),
+        battery_id INTEGER REFERENCES batteries(id),
+        amount DECIMAL(10,2) NOT NULL,
+        tenure_months INTEGER NOT NULL,
+        interest_rate DECIMAL(5,2) DEFAULT 12.0,
+        dealer_id INTEGER REFERENCES users(id),
+        status VARCHAR(20) DEFAULT 'submitted' CHECK (status IN ('submitted', 'approved', 'rejected', 'disbursed')),
+        disbursed_amount DECIMAL(10,2),
+        disbursement_date DATE,
+        loan_account_number VARCHAR(50),
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // EMI schedules table (updated to reference NBFC applications)
     await client.query(`
       CREATE TABLE IF NOT EXISTS emi_schedules (
         id SERIAL PRIMARY KEY,
-        finance_id INTEGER REFERENCES finance_applications(id),
+        application_id INTEGER REFERENCES nbfc_applications(id),
+        emi_number INTEGER NOT NULL,
         due_date DATE NOT NULL,
         amount DECIMAL(10,2) NOT NULL,
         status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'overdue')),
+        payment_date DATE,
+        payment_amount DECIMAL(10,2),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
