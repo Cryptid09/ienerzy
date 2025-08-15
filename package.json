@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "./dev.sh",
     "server": "cd server && npm run dev",
-    "client": "cd client && npm start",
+    "client": "npm start",
     "build": "cd client && npm run build",
     "install": "cd server && npm install && cd ../client && npm install",
     "setup-db": "cd server && npm run setup-db"

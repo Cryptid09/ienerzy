@@ -22,6 +22,6 @@
   "env": {
     "REACT_APP_API_URL": "https://ienerzy.onrender.com"
   },
-  "buildCommand": "npm install && npm run build",
+  "buildCommand": "npm run build",
   "outputDirectory": "build"
 } 
