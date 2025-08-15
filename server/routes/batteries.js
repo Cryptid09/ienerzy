@@ -90,6 +90,42 @@ router.get('/', authenticateToken, requireRole(['dealer', 'admin']), async (req,
   }
 });
 
+// GET /batteries/public - Public batteries list for service ticket creation
+router.get('/public', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userRole = req.user.role;
+    
+    let query = `
+      SELECT b.id, b.serial_number, b.status, b.health_score, b.created_at,
+             c.name as consumer_name, c.phone as consumer_phone
+      FROM batteries b
+      LEFT JOIN consumers c ON b.owner_id = c.id
+    `;
+    
+    let params = [];
+    
+    if (userRole === 'consumer') {
+      // Consumers can only see their own batteries
+      query += ' WHERE b.owner_id = $1';
+      params.push(userId);
+    } else if (userRole === 'dealer') {
+      // Dealers can see batteries owned by their consumers + unassigned
+      query += ' WHERE c.dealer_id = $1 OR b.owner_id IS NULL';
+      params.push(userId);
+    }
+    // Admins can see all batteries (no WHERE clause needed)
+    
+    query += ' ORDER BY b.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching public batteries:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /batteries - Add new battery
 router.post('/', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
   try {

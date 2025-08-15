@@ -20,17 +20,19 @@ function findNearestTechnician(location) {
 }
 
 // POST /service/tickets - Create service ticket
-router.post('/tickets', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
+router.post('/tickets', authenticateToken, async (req, res) => {
   try {
     const { battery_id, issue_category, description, location } = req.body;
+    const userId = req.user.userId;
+    const userRole = req.user.role;
     
     if (!battery_id || !issue_category) {
       return res.status(400).json({ error: 'Battery ID and issue category are required' });
     }
     
-    // Verify battery exists and belongs to dealer
+    // Verify battery exists and check access permissions
     let batteryQuery = `
-      SELECT b.*, c.dealer_id 
+      SELECT b.*, c.dealer_id, c.id as consumer_id
       FROM batteries b
       LEFT JOIN consumers c ON b.owner_id = c.id
       WHERE b.id = $1
@@ -44,10 +46,19 @@ router.post('/tickets', authenticateToken, requireRole(['dealer', 'admin']), asy
     
     const battery = batteryResult.rows[0];
     
-    // Check if dealer has access to this battery
-    if (req.user.role === 'dealer' && battery.dealer_id !== req.user.userId) {
-      return res.status(403).json({ error: 'Access denied to this battery' });
+    // Check access permissions based on user role
+    if (userRole === 'consumer') {
+      // Consumers can only create tickets for their own batteries
+      if (battery.consumer_id !== userId) {
+        return res.status(403).json({ error: 'You can only create tickets for your own batteries' });
+      }
+    } else if (userRole === 'dealer') {
+      // Dealers can create tickets for batteries owned by their consumers
+      if (battery.dealer_id !== userId) {
+        return res.status(403).json({ error: 'Access denied to this battery' });
+      }
     }
+    // Admins can create tickets for any battery
     
     // Auto-assign to nearest technician (using mock technician ID)
     const assignedTechnician = findNearestTechnician(location);
@@ -75,9 +86,10 @@ router.post('/tickets', authenticateToken, requireRole(['dealer', 'admin']), asy
 });
 
 // GET /service/tickets - List service tickets
-router.get('/tickets', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
+router.get('/tickets', authenticateToken, async (req, res) => {
   try {
-    const dealerId = req.user.role === 'dealer' ? req.user.userId : null;
+    const userId = req.user.userId;
+    const userRole = req.user.role;
     
     let query = `
       SELECT st.*, b.serial_number as battery_serial, b.status as battery_status,
@@ -89,10 +101,16 @@ router.get('/tickets', authenticateToken, requireRole(['dealer', 'admin']), asyn
     
     let params = [];
     
-    if (dealerId) {
+    if (userRole === 'consumer') {
+      // Consumers can only see tickets for their own batteries
+      query += ' WHERE c.id = $1';
+      params.push(userId);
+    } else if (userRole === 'dealer') {
+      // Dealers can see tickets for batteries owned by their consumers
       query += ' WHERE c.dealer_id = $1';
-      params.push(dealerId);
+      params.push(userId);
     }
+    // Admins can see all tickets (no WHERE clause needed)
     
     query += ' ORDER BY st.created_at DESC';
     

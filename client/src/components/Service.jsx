@@ -22,15 +22,27 @@ const Service = ({ user }) => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      console.log('Fetching service data...');
+      
       const [ticketsRes, batteriesRes] = await Promise.all([
         axios.get('/api/service/tickets'),
-        axios.get('/api/batteries')
+        axios.get('/api/batteries/public')  // Use public endpoint for service ticket creation
       ]);
+      
+      console.log('Tickets response:', ticketsRes.data);
+      console.log('Batteries response:', batteriesRes.data);
       
       setTickets(ticketsRes.data);
       setBatteries(batteriesRes.data);
     } catch (error) {
-      // Error fetching service data
+      console.error('Error fetching service data:', error);
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', error.response.data);
+      }
+      // Set empty arrays on error to prevent crashes
+      setTickets([]);
+      setBatteries([]);
     } finally {
       setLoading(false);
     }
@@ -43,8 +55,11 @@ const Service = ({ user }) => {
       setShowAddModal(false);
       setFormData({ battery_id: '', issue_category: '', description: '', location: '' });
       fetchData();
+      alert('Service ticket created successfully!');
     } catch (error) {
-      alert(error.response?.data?.error || 'Failed to add ticket');
+      const errorMessage = error.response?.data?.error || 'Failed to add ticket';
+      console.error('Error creating ticket:', error);
+      alert(`Error: ${errorMessage}`);
     }
   };
 
@@ -326,14 +341,24 @@ const Service = ({ user }) => {
                   onChange={(e) => setFormData({...formData, battery_id: e.target.value})}
                   className="form-input"
                   required
+                  disabled={loading || batteries.length === 0}
                 >
-                  <option value="">Select Battery</option>
+                  <option value="">
+                    {loading ? 'Loading batteries...' : 
+                     batteries.length === 0 ? 'No batteries available' : 
+                     'Select Battery'}
+                  </option>
                   {batteries.map(battery => (
                     <option key={battery.id} value={battery.id}>
                       {battery.serial_number} (Health: {battery.health_score}%)
                     </option>
                   ))}
                 </select>
+                {batteries.length === 0 && !loading && (
+                  <p className="text-sm text-red-500 mt-1">
+                    No batteries available for service ticket creation. Please contact your dealer.
+                  </p>
+                )}
               </div>
               <div className="form-group">
                 <label htmlFor="issue_category" className="form-label">
