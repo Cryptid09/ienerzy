@@ -129,12 +129,15 @@ const Service = ({ user }) => {
       </div>
 
       <div className="action-bar">
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="btn btn-primary"
-        >
-          + Create Service Ticket
-        </button>
+        {/* Only dealers, admins, and consumers can create service tickets */}
+        {(user.role === 'dealer' || user.role === 'admin' || user.role === 'consumer') && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="btn btn-primary"
+          >
+            + Create Service Ticket
+          </button>
+        )}
       </div>
 
       {/* Battery Overview Section */}

@@ -90,12 +90,15 @@ const Finance = ({ user }) => {
       </div>
 
       <div className="action-bar">
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="btn btn-primary"
-        >
-          + New Loan Application
-        </button>
+        {/* Only dealers and admins can create loan applications */}
+        {(user.role === 'dealer' || user.role === 'admin') && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="btn btn-primary"
+          >
+            + New Loan Application
+          </button>
+        )}
       </div>
 
       {/* Loan Applications */}
@@ -171,7 +174,8 @@ const Finance = ({ user }) => {
                     </span>
                   </td>
                   <td className="py-3 px-4">
-                    {emi.status !== 'paid' && (
+                    {/* Only dealers, admins, and consumers can mark EMI as paid */}
+                    {emi.status !== 'paid' && (user.role === 'dealer' || user.role === 'admin' || user.role === 'consumer') && (
                       <button
                         onClick={() => handleEMIPayment(emi.id, emi.amount)}
                         className="btn btn-success text-xs"

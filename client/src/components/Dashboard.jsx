@@ -93,6 +93,7 @@ const Dashboard = ({ user }) => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        {/* Battery stats - visible to all users */}
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-lg">
           <div className="text-3xl font-bold mb-2">{stats.totalBatteries}</div>
           <div className="text-blue-100">Total Batteries</div>
@@ -103,23 +104,28 @@ const Dashboard = ({ user }) => {
           <div className="text-green-100">Active Batteries</div>
         </div>
         
-        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-lg">
-          <div className="text-3xl font-bold mb-2">{stats.totalConsumers}</div>
-          <div className="text-purple-100">Total Consumers</div>
-        </div>
+        {/* Consumer stats - only visible to dealers and admins */}
+        {(user.role === 'dealer' || user.role === 'admin') && (
+          <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-lg">
+            <div className="text-3xl font-bold mb-2">{stats.totalConsumers}</div>
+            <div className="text-purple-100">Total Consumers</div>
+          </div>
+        )}
         
+        {/* EMI stats - visible to all users */}
         <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-lg shadow-lg">
           <div className="text-3xl font-bold mb-2">{stats.pendingEMIs}</div>
           <div className="text-yellow-100">Pending EMIs</div>
         </div>
         
+        {/* Service ticket stats - visible to all users */}
         <div className="bg-gradient-to-r from-red-500 to-red-600 text-white p-6 rounded-lg shadow-lg">
           <div className="text-3xl font-bold mb-2">{stats.openTickets}</div>
           <div className="text-red-100">Open Tickets</div>
         </div>
       </div>
 
-      {/* Recent Batteries */}
+      {/* Recent Batteries - visible to all users but with role-based messaging */}
       <div className="card">
         <h2 className="text-xl font-semibold mb-4">Recent Batteries</h2>
         {recentBatteries.length > 0 ? (
@@ -167,31 +173,38 @@ const Dashboard = ({ user }) => {
           </div>
         ) : (
           <div className="text-center py-8 text-gray-500">
-            No batteries found. Add your first battery to get started.
+            {user.role === 'consumer' ? 'No batteries assigned to you yet.' : 'No batteries found. Add your first battery to get started.'}
           </div>
         )}
       </div>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-        <div 
-          className="card text-center hover:shadow-lg transition-shadow cursor-pointer"
-          onClick={() => navigate('/batteries')}
-        >
-          <div className="text-4xl mb-3">🔋</div>
-          <h3 className="text-lg font-semibold mb-2">Add Battery</h3>
-          <p className="text-gray-600 text-sm">Register a new battery in your system</p>
-        </div>
+        {/* Only dealers and admins can add batteries */}
+        {(user.role === 'dealer' || user.role === 'admin') && (
+          <div 
+            className="card text-center hover:shadow-lg transition-shadow cursor-pointer"
+            onClick={() => navigate('/batteries')}
+          >
+            <div className="text-4xl mb-3">🔋</div>
+            <h3 className="text-lg font-semibold mb-2">Add Battery</h3>
+            <p className="text-gray-600 text-sm">Register a new battery in your system</p>
+          </div>
+        )}
         
-        <div 
-          className="card text-center hover:shadow-lg transition-shadow cursor-pointer"
-          onClick={() => navigate('/consumers')}
-        >
-          <div className="text-4xl mb-3">👤</div>
-          <h3 className="text-lg font-semibold mb-2">Add Consumer</h3>
-          <p className="text-gray-600 text-sm">Onboard a new consumer customer</p>
-        </div>
+        {/* Only dealers and admins can add consumers */}
+        {(user.role === 'dealer' || user.role === 'admin') && (
+          <div 
+            className="card text-center hover:shadow-lg transition-shadow cursor-pointer"
+            onClick={() => navigate('/consumers')}
+          >
+            <div className="text-4xl mb-3">👤</div>
+            <h3 className="text-lg font-semibold mb-2">Add Consumer</h3>
+            <p className="text-gray-600 text-sm">Onboard a new consumer customer</p>
+          </div>
+        )}
         
+        {/* All users can create service tickets */}
         <div 
           className="card text-center hover:shadow-lg transition-shadow cursor-pointer"
           onClick={() => navigate('/service')}
