@@ -60,74 +60,54 @@ function App() {
     );
   }
 
+  // Render routes based on authentication state
+  const renderRoutes = () => {
+    if (!user) {
+      return (
+        <Routes>
+          <Route path="/" element={<Login onLogin={handleLogin} />} />
+          <Route path="/login" element={<Login onLogin={handleLogin} />} />
+          <Route path="/signup" element={<Signup onLogin={handleLogin} />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      );
+    }
+
+    return (
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/signup" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<Dashboard user={user} />} />
+        <Route path="/batteries" element={<Batteries user={user} />} />
+        <Route path="/consumers" element={<Consumers user={user} />} />
+        <Route path="/finance" element={<Finance user={user} />} />
+        <Route path="/service" element={<Service user={user} />} />
+        <Route path="/consumer-view" element={<ConsumerView user={user} />} />
+        <Route path="/messaging" element={<MessagingTest user={user} />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    );
+  };
+
+  // Handle navigation errors
+  const handleNavigationError = (error) => {
+    console.log('Navigation error:', error);
+    // Fallback to dashboard on navigation errors
+    if (user) {
+      window.location.href = '/dashboard';
+    } else {
+      window.location.href = '/login';
+    }
+  };
+
   return (
     <Router>
       <div className="App">
         {user && <Navbar user={user} onLogout={handleLogout} />}
         
         <div className="main-content">
-          <Routes>
-            <Route 
-              path="/" 
-              element={
-                user ? <Navigate to="/dashboard" /> : <Login onLogin={handleLogin} />
-              } 
-            />
-            <Route 
-              path="/login" 
-              element={
-                user ? <Navigate to="/dashboard" /> : <Login onLogin={handleLogin} />
-              } 
-            />
-            <Route 
-              path="/signup" 
-              element={
-                user ? <Navigate to="/dashboard" /> : <Signup onLogin={handleLogin} />
-              } 
-            />
-            <Route 
-              path="/dashboard" 
-              element={
-                user ? <Dashboard user={user} /> : <Navigate to="/login" />
-              } 
-            />
-            <Route 
-              path="/batteries" 
-              element={
-                user ? <Batteries user={user} /> : <Navigate to="/login" />
-              } 
-            />
-            <Route 
-              path="/consumers" 
-              element={
-                user ? <Consumers user={user} /> : <Navigate to="/login" />
-              } 
-            />
-            <Route 
-              path="/finance" 
-              element={
-                user ? <Finance user={user} /> : <Navigate to="/login" />
-              } 
-            />
-            <Route 
-              path="/service" 
-              element={
-                user ? <Service user={user} /> : <Navigate to="/login" />
-              } 
-            />
-            <Route 
-              path="/consumer-view" 
-              element={
-                user ? <ConsumerView user={user} /> : <Navigate to="/login" />
-              } 
-            />
-            <Route 
-              path="/messaging" 
-              element={
-                user ? <MessagingTest user={user} /> : <Navigate to="/login" />
-              } 
-            />
-          </Routes>
+          {renderRoutes()}
         </div>
       </div>
     </Router>
