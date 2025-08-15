@@ -4,24 +4,26 @@ const bcrypt = require('bcryptjs');
 const router = express.Router();
 const { pool } = require('../database/setup');
 const messagingService = require('../services/messaging');
+const sessionService = require('../services/session');
+const config = require('../config/auth');
+const { loginLimit, otpLimit } = require('../middleware/rateLimit');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-
-// Real OTP storage (in production, use Redis or database)
-const otpStorage = new Map();
-
-// Generate real OTP
+// Generate secure OTP
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 // POST /auth/login - Generate OTP and send via SMS
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimit, async (req, res) => {
   try {
     const { phone, userType } = req.body;
     
     if (!phone) {
       return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    if (!['dealer', 'admin', 'consumer'].includes(userType)) {
+      return res.status(400).json({ error: 'Invalid user type' });
     }
 
     let user = null;
@@ -37,7 +39,6 @@ router.post('/login', async (req, res) => {
       if (consumerResult.rows.length > 0) {
         user = consumerResult.rows[0];
         isConsumer = true;
-        // Add role for consumers
         user.role = 'consumer';
       }
     } else {
@@ -58,23 +59,17 @@ router.post('/login', async (req, res) => {
       });
     }
     
-    // Generate real OTP
+    // Generate OTP
     const otp = generateOTP();
     
-    // Store OTP with expiration
-    otpStorage.set(phone, {
-      otp,
-      user,
-      isConsumer,
-      expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
-    });
+    // Store OTP in database
+    await sessionService.storeOTP(phone, otp, user, userType);
 
     try {
-      // Send OTP via Twilio SMS
+      // Send OTP via SMS
       const smsResult = await messagingService.sendOTP(phone, otp);
       
       console.log(`OTP sent via SMS to ${userType} ${phone}: ${otp}`);
-      console.log('SMS Result:', smsResult);
 
       res.json({ 
         success: true,
@@ -103,7 +98,7 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /auth/verify-otp - Verify OTP and issue JWT
-router.post('/verify-otp', async (req, res) => {
+router.post('/verify-otp', otpLimit, async (req, res) => {
   try {
     const { phone, otp, userType } = req.body;
     
@@ -111,56 +106,210 @@ router.post('/verify-otp', async (req, res) => {
       return res.status(400).json({ error: 'Phone and OTP are required' });
     }
 
-    const otpData = otpStorage.get(phone);
+    if (!userType) {
+      return res.status(400).json({ error: 'User type is required' });
+    }
+
+    // Verify OTP
+    const otpResult = await sessionService.verifyOTP(phone, otp);
     
-    if (!otpData) {
-      return res.status(400).json({ error: 'OTP expired or not found' });
+    if (!otpResult.valid) {
+      let errorMessage = 'Invalid OTP';
+      if (otpResult.reason === 'OTP_NOT_FOUND') {
+        errorMessage = 'OTP expired or not found';
+      } else if (otpResult.reason === 'MAX_ATTEMPTS_EXCEEDED') {
+        errorMessage = 'Too many failed attempts. Please request a new OTP.';
+      }
+      
+      return res.status(400).json({ error: errorMessage });
     }
 
-    if (otpData.otp !== otp) {
-      return res.status(400).json({ error: 'Invalid OTP' });
-    }
-
-    if (Date.now() > otpData.expiresAt) {
-      otpStorage.delete(phone);
-      return res.status(400).json({ error: 'OTP has expired' });
-    }
-
-    // OTP is valid - generate JWT token
+    const user = otpResult.userData;
+    
+    // Generate JWT token and refresh token
     const token = jwt.sign(
       { 
-        userId: otpData.user.id, 
-        phone: otpData.user.phone, 
-        role: otpData.user.role,
-        isConsumer: otpData.isConsumer
+        userId: user.id, 
+        phone: user.phone, 
+        role: user.role,
+        isConsumer: otpResult.userType === 'consumer'
       }, 
-      JWT_SECRET, 
-      { expiresIn: '24h' }
+      config.JWT_SECRET, 
+      { expiresIn: config.JWT_EXPIRES_IN }
     );
 
-    // Clean up OTP
-    otpStorage.delete(phone);
+    const refreshToken = jwt.sign(
+      { 
+        userId: user.id, 
+        type: 'refresh'
+      }, 
+      config.JWT_SECRET, 
+      { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
+    );
+
+    // Create session
+    await sessionService.createSession(user.id, token, refreshToken);
 
     res.json({
       success: true,
       message: 'OTP verified successfully',
       token,
+      refreshToken,
       user: {
-        id: otpData.user.id,
-        name: otpData.user.name,
-        phone: otpData.user.phone,
-        role: otpData.user.role,
-        isConsumer: otpData.isConsumer
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        isConsumer: otpResult.userType === 'consumer'
       }
     });
   } catch (error) {
     console.error('OTP verification error:', error);
+    console.error('Request body:', req.body);
+    console.error('User agent:', req.get('User-Agent'));
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /auth/refresh - Refresh JWT token
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token is required' });
+    }
+
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, config.JWT_SECRET);
+    
+    if (decoded.type !== 'refresh') {
+      return res.status(400).json({ error: 'Invalid refresh token' });
+    }
+
+    // Validate session
+    const session = await sessionService.refreshSession(refreshToken);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+
+    // Generate new tokens
+    const newToken = jwt.sign(
+      { 
+        userId: session.user_id, 
+        phone: session.phone, 
+        role: session.role,
+        isConsumer: false
+      }, 
+      config.JWT_SECRET, 
+      { expiresIn: config.JWT_EXPIRES_IN }
+    );
+
+    const newRefreshToken = jwt.sign(
+      { 
+        userId: session.user_id, 
+        type: 'refresh'
+      }, 
+      config.JWT_SECRET, 
+      { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
+    );
+
+    // Update session
+    await sessionService.updateSession(session.id, newToken, newRefreshToken);
+
+    res.json({
+      success: true,
+      message: 'Token refreshed successfully',
+      token: newToken,
+      refreshToken: newRefreshToken
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(401).json({ error: 'Invalid refresh token' });
+  }
+});
+
+// POST /auth/logout - Logout and invalidate session
+router.post('/logout', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (token) {
+      // Blacklist token
+      await sessionService.blacklistToken(token);
+      
+      // Invalidate session
+      await sessionService.invalidateSession(token);
+    }
+
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /auth/logout-all - Logout from all devices
+router.post('/logout-all', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (token) {
+      // Verify token to get user ID
+      const decoded = jwt.verify(token, config.JWT_SECRET);
+      
+      // Revoke all sessions for user
+      await sessionService.revokeAllUserSessions(decoded.userId);
+      
+      // Blacklist current token
+      await sessionService.blacklistToken(token);
+    }
+
+    res.json({
+      success: true,
+      message: 'Logged out from all devices successfully'
+    });
+  } catch (error) {
+    console.error('Logout all error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /auth/sessions - Get active sessions for current user
+router.get('/sessions', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ error: 'Access token required' });
+    }
+
+    const decoded = jwt.verify(token, config.JWT_SECRET);
+    const sessions = await sessionService.getUserSessions(decoded.userId);
+
+    res.json({
+      success: true,
+      sessions: sessions.map(session => ({
+        id: session.id,
+        created_at: session.created_at,
+        last_activity: session.last_activity,
+        expires_at: session.expires_at
+      }))
+    });
+  } catch (error) {
+    console.error('Get sessions error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // POST /auth/resend-otp - Resend OTP via SMS
-router.post('/resend-otp', async (req, res) => {
+router.post('/resend-otp', otpLimit, async (req, res) => {
   try {
     const { phone, userType } = req.body;
     
@@ -203,24 +352,18 @@ router.post('/resend-otp', async (req, res) => {
     // Generate new OTP
     const otp = generateOTP();
     
-    // Update OTP storage with new OTP
-    otpStorage.set(phone, {
-      otp,
-      user,
-      isConsumer,
-      expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
-    });
+    // Store new OTP
+    await sessionService.storeOTP(phone, otp, user, userType);
 
     try {
-      // Send new OTP via Twilio SMS
+      // Send OTP via SMS
       const smsResult = await messagingService.sendOTP(phone, otp);
       
       console.log(`OTP resent via SMS to ${userType} ${phone}: ${otp}`);
-      console.log('SMS Result:', smsResult);
 
       res.json({ 
         success: true,
-        message: 'OTP resent successfully via SMS',
+        message: 'OTP resent successfully',
         phone,
         expiresIn: '5 minutes',
         smsSid: smsResult.sid
@@ -228,10 +371,9 @@ router.post('/resend-otp', async (req, res) => {
     } catch (smsError) {
       console.error('SMS sending failed:', smsError);
       
-      // Fallback: still store OTP but inform user about SMS failure
       res.json({ 
         success: true,
-        message: 'OTP regenerated but SMS delivery failed. Please check your phone number.',
+        message: 'OTP resent but SMS delivery failed. Please check your phone number.',
         phone,
         expiresIn: '5 minutes',
         otp, // Include OTP for demo purposes if SMS fails
@@ -245,7 +387,7 @@ router.post('/resend-otp', async (req, res) => {
 });
 
 // POST /auth/signup - User registration
-router.post('/signup', async (req, res) => {
+router.post('/signup', loginLimit, async (req, res) => {
   try {
     const { name, phone, role, password } = req.body;
     
@@ -288,14 +430,27 @@ router.post('/signup', async (req, res) => {
         role: newUser.role,
         isConsumer: false
       }, 
-      JWT_SECRET, 
-      { expiresIn: '24h' }
+      config.JWT_SECRET, 
+      { expiresIn: config.JWT_EXPIRES_IN }
     );
+
+    const refreshToken = jwt.sign(
+      { 
+        userId: newUser.id, 
+        type: 'refresh'
+      }, 
+      config.JWT_SECRET, 
+      { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
+    );
+
+    // Create session
+    await sessionService.createSession(newUser.id, token, refreshToken);
 
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
       token,
+      refreshToken,
       user: {
         id: newUser.id,
         name: newUser.name,
@@ -311,12 +466,12 @@ router.post('/signup', async (req, res) => {
 });
 
 // POST /auth/signup-consumer - Consumer registration
-router.post('/signup-consumer', async (req, res) => {
+router.post('/signup-consumer', loginLimit, async (req, res) => {
   try {
-    const { name, phone, dealerPhone, pan, aadhar } = req.body;
+    const { name, phone, pan, aadhar, dealer_id } = req.body;
     
-    if (!name || !phone || !dealerPhone) {
-      return res.status(400).json({ error: 'Name, phone, and dealer phone are required' });
+    if (!name || !phone) {
+      return res.status(400).json({ error: 'Name and phone are required' });
     }
 
     // Check if consumer already exists
@@ -329,48 +484,25 @@ router.post('/signup-consumer', async (req, res) => {
       return res.status(400).json({ error: 'Consumer with this phone number already exists' });
     }
 
-    // Find dealer by phone
-    const dealerResult = await pool.query(
-      'SELECT id FROM users WHERE phone = $1 AND role = $2',
-      [dealerPhone, 'dealer']
-    );
-
-    if (dealerResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Dealer not found with the provided phone number' });
-    }
-
-    const dealerId = dealerResult.rows[0].id;
-
     // Create new consumer
     const result = await pool.query(
-      'INSERT INTO consumers (name, phone, pan, aadhar, kyc_status, dealer_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, phone, kyc_status, dealer_id',
-      [name, phone, pan || null, aadhar || null, 'pending', dealerId]
+      'INSERT INTO consumers (name, phone, pan, aadhar, dealer_id, kyc_status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [name, phone, pan, aadhar, dealer_id, 'pending']
     );
 
     const newConsumer = result.rows[0];
 
-    // Generate JWT token for immediate login
-    const token = jwt.sign(
-      { 
-        userId: newConsumer.id, 
-        phone: newConsumer.phone, 
-        role: 'consumer',
-        isConsumer: true
-      }, 
-      JWT_SECRET, 
-      { expiresIn: '24h' }
-    );
-
     res.status(201).json({
       success: true,
       message: 'Consumer registered successfully',
-      token,
-      user: {
+      consumer: {
         id: newConsumer.id,
         name: newConsumer.name,
         phone: newConsumer.phone,
-        role: 'consumer',
-        kyc_status: newConsumer.kyc_status
+        pan: newConsumer.pan,
+        aadhar: newConsumer.aadhar,
+        kyc_status: newConsumer.kyc_status,
+        dealer_id: newConsumer.dealer_id
       }
     });
 
@@ -380,8 +512,8 @@ router.post('/signup-consumer', async (req, res) => {
   }
 });
 
-// POST /auth/login-password - Password-based login for staff users
-router.post('/login-password', async (req, res) => {
+// POST /auth/login-password - Password-based login for staff
+router.post('/login-password', loginLimit, async (req, res) => {
   try {
     const { phone, password } = req.body;
     
@@ -416,14 +548,27 @@ router.post('/login-password', async (req, res) => {
         role: user.role,
         isConsumer: false
       },
-      JWT_SECRET,
-      { expiresIn: '24h' }
+      config.JWT_SECRET,
+      { expiresIn: config.JWT_EXPIRES_IN }
     );
+
+    const refreshToken = jwt.sign(
+      { 
+        userId: user.id, 
+        type: 'refresh'
+      }, 
+      config.JWT_SECRET, 
+      { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
+    );
+
+    // Create session
+    await sessionService.createSession(user.id, token, refreshToken);
 
     res.json({
       success: true,
       message: 'Login successful',
       token,
+      refreshToken,
       user: {
         id: user.id,
         name: user.name,
@@ -439,16 +584,8 @@ router.post('/login-password', async (req, res) => {
 });
 
 // GET /auth/me - Get current user info
-router.get('/me', authenticateToken, (req, res) => {
-  res.json({
-    id: req.user.userId,
-    phone: req.user.phone,
-    role: req.user.role
-  });
-});
-
-// Middleware to authenticate JWT token
-function authenticateToken(req, res, next) {
+router.get('/me', async (req, res) => {
+  try {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -456,28 +593,44 @@ function authenticateToken(req, res, next) {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
+    // Verify token
+    const decoded = jwt.verify(token, config.JWT_SECRET);
+    
+    // Get user info from database
+    let user;
+    if (decoded.isConsumer) {
+      const result = await pool.query(
+        'SELECT id, name, phone, "kyc_status" as status FROM consumers WHERE id = $1',
+        [decoded.userId]
+      );
+      if (result.rows.length > 0) {
+        user = { ...result.rows[0], role: 'consumer', isConsumer: true };
+      }
+    } else {
+      const result = await pool.query(
+        'SELECT id, name, phone, role FROM users WHERE id = $1',
+        [decoded.userId]
+      );
+      if (result.rows.length > 0) {
+        user = { ...result.rows[0], isConsumer: false };
+      }
     }
-    req.user = user;
-    next();
-  });
-}
 
-// Middleware to check role permissions
-function requireRole(allowedRoles) {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
-    
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
-    }
-    
-    next();
-  };
-}
+
+    res.json({
+      id: user.id,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      isConsumer: user.isConsumer
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
 
 module.exports = router; 

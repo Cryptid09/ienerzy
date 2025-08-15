@@ -57,12 +57,16 @@ const Login = ({ onLogin }) => {
     try {
       const response = await axios.post('/auth/verify-otp', { phone, otp, userType });
       
-      if (response.data.token) {
+      if (response.data.token && response.data.refreshToken) {
+        // Store both tokens
         localStorage.setItem('token', response.data.token);
+        localStorage.setItem('refreshToken', response.data.refreshToken);
+        
         // Set default Authorization header immediately
         try {
           axios.defaults.headers.common.Authorization = `Bearer ${response.data.token}`;
         } catch (_) {}
+        
         onLogin(response.data.user);
         setSuccess('Login successful!');
       } else {

@@ -32,6 +32,45 @@ axios.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Response interceptor to handle token refresh
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        try {
+          const response = await axios.post('/auth/refresh', { refreshToken });
+          const { token, refreshToken: newRefreshToken } = response.data;
+
+          localStorage.setItem('token', token);
+          localStorage.setItem('refreshToken', newRefreshToken);
+
+          // Retry original request with new token
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return axios(originalRequest);
+        } catch (refreshError) {
+          // Refresh failed, redirect to login
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          window.location.href = '/login';
+          return Promise.reject(refreshError);
+        }
+      } else {
+        // No refresh token, redirect to login
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 // Protected Route Component
 function ProtectedRoute({ children, user }) {
   if (!user) {
@@ -55,20 +94,41 @@ function App() {
   useEffect(() => {
     // Check if user is logged in
     const token = localStorage.getItem('token');
-    if (token) {
+    const refreshToken = localStorage.getItem('refreshToken');
+    
+    if (token && refreshToken) {
       // Verify token with backend
-      axios.get('/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(response => {
-        setUser(response.data);
-      })
-      .catch(() => {
-        localStorage.removeItem('token');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      axios.get('/auth/me')
+        .then(response => {
+          setUser(response.data);
+        })
+        .catch(async (error) => {
+          if (error.response?.status === 401) {
+            // Try to refresh token
+            try {
+              const refreshResponse = await axios.post('/auth/refresh', { refreshToken });
+              const { token: newToken, refreshToken: newRefreshToken } = refreshResponse.data;
+              
+              localStorage.setItem('token', newToken);
+              localStorage.setItem('refreshToken', newRefreshToken);
+              
+              // Get user info with new token
+              const userResponse = await axios.get('/auth/me');
+              setUser(userResponse.data);
+            } catch (refreshError) {
+              // Refresh failed, clear tokens
+              localStorage.removeItem('token');
+              localStorage.removeItem('refreshToken');
+            }
+          } else {
+            // Other error, clear tokens
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+          }
+        })
+        .finally(() => {
+          setLoading(false);
+        });
     } else {
       setLoading(false);
     }
@@ -89,12 +149,38 @@ function App() {
     setUser(userData);
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('token');
+  const handleLogout = async () => {
     try {
-      delete axios.defaults.headers.common.Authorization;
-    } catch (_) {}
+      // Call logout endpoint to invalidate session
+      await axios.post('/auth/logout');
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Clear local state regardless of API call success
+      setUser(null);
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      try {
+        delete axios.defaults.headers.common.Authorization;
+      } catch (_) {}
+    }
+  };
+
+  const handleLogoutAll = async () => {
+    try {
+      // Call logout-all endpoint to invalidate all sessions
+      await axios.post('/auth/logout-all');
+    } catch (error) {
+      console.error('Logout all error:', error);
+    } finally {
+      // Clear local state regardless of API call success
+      setUser(null);
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      try {
+        delete axios.defaults.headers.common.Authorization;
+      } catch (_) {}
+    }
   };
 
   if (loading) {
@@ -107,123 +193,106 @@ function App() {
 
   return (
     <div className="App">
-      {user && <Navbar user={user} onLogout={handleLogout} />}
+      {user && <Navbar user={user} onLogout={handleLogout} onLogoutAll={handleLogoutAll} />}
       
-      <div className="main-content">
-        <Routes key={user ? 'authenticated' : 'unauthenticated'}>
-            {/* Public Routes */}
-            <Route 
-              path="/" 
-              element={
-                <PublicRoute user={user}>
-                  <Login onLogin={handleLogin} />
-                </PublicRoute>
-              } 
-            />
-            <Route 
-              path="/login" 
-              element={
-                <PublicRoute user={user}>
-                  <Login onLogin={handleLogin} />
-                </PublicRoute>
-              } 
-            />
-            <Route 
-              path="/signup" 
-              element={
-                <PublicRoute user={user}>
-                  <Signup onLogin={handleLogin} />
-                </PublicRoute>
-              } 
-            />
-            
-            {/* Protected Routes */}
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute user={user}>
-                  <Dashboard user={user} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/batteries" 
-              element={
-                <ProtectedRoute user={user}>
-                  <Batteries user={user} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/consumers" 
-              element={
-                <ProtectedRoute user={user}>
-                  <Consumers user={user} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/finance" 
-              element={
-                <ProtectedRoute user={user}>
-                  <Finance user={user} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/service" 
-              element={
-                <ProtectedRoute user={user}>
-                  <Service user={user} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/consumer-view" 
-              element={
-                <ProtectedRoute user={user}>
-                  <ConsumerView user={user} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/messaging" 
-              element={
-                <ProtectedRoute user={user}>
-                  <MessagingTest user={user} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/nbfc" 
-              element={
-                <ProtectedRoute user={user}>
-                  <NBFC user={user} />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/analytics" 
-              element={
-                <ProtectedRoute user={user}>
-                  <Analytics user={user} />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Catch all route */}
-            <Route 
-              path="*" 
-              element={
-                user ? 
-                <Navigate to="/dashboard" replace /> : 
-                <Navigate to="/login" replace />
-              } 
-            />
-          </Routes>
-        </div>
+      <div className="container mx-auto px-4 py-8">
+        <Routes>
+          <Route 
+            path="/login" 
+            element={
+              <PublicRoute user={user}>
+                <Login onLogin={handleLogin} />
+              </PublicRoute>
+            } 
+          />
+          <Route 
+            path="/signup" 
+            element={
+              <PublicRoute user={user}>
+                <Signup onLogin={handleLogin} />
+              </PublicRoute>
+            } 
+          />
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute user={user}>
+                <Dashboard user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/batteries" 
+            element={
+              <ProtectedRoute user={user}>
+                <Batteries user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/consumers" 
+            element={
+              <ProtectedRoute user={user}>
+                <Consumers user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/finance" 
+            element={
+              <ProtectedRoute user={user}>
+                <Finance user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/service" 
+            element={
+              <ProtectedRoute user={user}>
+                <Service user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/nbfc" 
+            element={
+              <ProtectedRoute user={user}>
+                <NBFC user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/analytics" 
+            element={
+              <ProtectedRoute user={user}>
+                <Analytics user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/consumer/:id" 
+            element={
+              <ProtectedRoute user={user}>
+                <ConsumerView user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/messaging-test" 
+            element={
+              <ProtectedRoute user={user}>
+                <MessagingTest user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/" 
+            element={<Navigate to={user ? "/dashboard" : "/login"} replace />} 
+          />
+        </Routes>
       </div>
-    );
+    </div>
+  );
 }
 
 export default App; 

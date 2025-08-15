@@ -1,9 +1,9 @@
 const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const config = require('../config/auth');
+const sessionService = require('../services/session');
 
 // Middleware to authenticate JWT token
-function authenticateToken(req, res, next) {
+async function authenticateToken(req, res, next) {
   console.log('authenticateToken middleware hit:', { 
     url: req.url, 
     method: req.method,
@@ -18,15 +18,46 @@ function authenticateToken(req, res, next) {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      console.log('Token verification failed:', err.message);
-      return res.status(403).json({ error: 'Invalid or expired token' });
+  try {
+    // Verify JWT token
+    const decoded = jwt.verify(token, config.JWT_SECRET);
+    
+    // Check if token is blacklisted
+    const isBlacklisted = await sessionService.isTokenBlacklisted(token);
+    if (isBlacklisted) {
+      console.log('Token is blacklisted');
+      return res.status(401).json({ error: 'Token has been revoked' });
     }
-    console.log('Token verified successfully, user:', user);
-    req.user = user;
+
+    // Validate session
+    const session = await sessionService.validateSession(token);
+    if (!session) {
+      console.log('Session validation failed');
+      return res.status(401).json({ error: 'Session expired or invalid' });
+    }
+
+    // Set user info from session
+    req.user = {
+      userId: session.user_id,
+      phone: session.phone,
+      role: session.role,
+      name: session.name
+    };
+
+    console.log('Token verified successfully, user:', req.user);
     next();
-  });
+  } catch (error) {
+    console.log('Token verification failed:', error.message);
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        error: 'Token expired',
+        message: 'Please refresh your token or login again'
+      });
+    }
+    
+    return res.status(403).json({ error: 'Invalid token' });
+  }
 }
 
 // Middleware to check role permissions
@@ -98,7 +129,7 @@ function requireOwnership(table, idField = 'id') {
       
       // For consumers, check if they own the resource
       if (req.user.isConsumer) {
-        if (resource.owner_id !== req.user.userId && resource.consumer_id !== req.user.userId) {
+        if (resource.owner_id !== req.user.userId) {
           return res.status(403).json({ error: 'Access denied' });
         }
       }
@@ -111,9 +142,60 @@ function requireOwnership(table, idField = 'id') {
   };
 }
 
+// Middleware to check if user can access battery
+function requireBatteryAccess() {
+  return async (req, res, next) => {
+    try {
+      const { pool } = require('../database/setup');
+      const { serial } = req.params;
+      
+      // Admin can access everything
+      if (req.user.role === 'admin') {
+        return next();
+      }
+      
+      // Get battery details
+      const batteryQuery = `
+        SELECT b.*, c.dealer_id 
+        FROM batteries b
+        LEFT JOIN consumers c ON b.owner_id = c.id
+        WHERE b.serial_number = $1
+      `;
+      
+      const batteryResult = await pool.query(batteryQuery, [serial]);
+      
+      if (batteryResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Battery not found' });
+      }
+      
+      const battery = batteryResult.rows[0];
+      
+      // Dealers can access batteries they own or unassigned batteries
+      if (req.user.role === 'dealer') {
+        if (battery.owner_id && battery.dealer_id !== req.user.userId) {
+          return res.status(403).json({ error: 'Access denied to this battery' });
+        }
+      }
+      
+      // Consumers can only access their own batteries
+      if (req.user.isConsumer) {
+        if (battery.owner_id !== req.user.userId) {
+          return res.status(403).json({ error: 'Access denied to this battery' });
+        }
+      }
+      
+      next();
+    } catch (error) {
+      console.error('Battery access check error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+}
+
 module.exports = {
   authenticateToken,
   requireRole,
   requireConsumer,
-  requireOwnership
+  requireOwnership,
+  requireBatteryAccess
 }; 

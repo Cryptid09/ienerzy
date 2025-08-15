@@ -99,6 +99,46 @@ async function createTables() {
       )
     `);
 
+    // Session and OTP tables
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS otp_storage (
+        id SERIAL PRIMARY KEY,
+        phone VARCHAR(15) NOT NULL UNIQUE,
+        otp VARCHAR(10) NOT NULL,
+        user_data JSONB NOT NULL,
+        user_type VARCHAR(20) NOT NULL,
+        attempts INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        token_hash VARCHAR(64) NOT NULL UNIQUE,
+        refresh_token_hash VARCHAR(64) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL,
+        last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ip_address INET,
+        user_agent TEXT
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS rate_limits (
+        id SERIAL PRIMARY KEY,
+        identifier VARCHAR(100) NOT NULL,
+        action VARCHAR(50) NOT NULL,
+        attempts INTEGER DEFAULT 1,
+        first_attempt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_attempt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(identifier, action)
+      )
+    `);
+
     // EMI schedules table (updated to reference NBFC applications)
     await client.query(`
       CREATE TABLE IF NOT EXISTS emi_schedules (
@@ -137,6 +177,23 @@ async function createTables() {
       WHERE owner_id IS NOT NULL AND owner_id NOT IN (SELECT id FROM consumers)
     `);
     await client.query(`ALTER TABLE batteries ADD CONSTRAINT batteries_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES consumers(id) ON DELETE SET NULL`);
+
+    // Create indexes for better performance
+    await client.query('CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_consumers_phone ON consumers(phone)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_batteries_serial ON batteries(serial_number)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_batteries_owner ON batteries(owner_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_finance_applications_consumer ON finance_applications(consumer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_nbfc_applications_consumer ON nbfc_applications(consumer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_nbfc_applications_dealer ON nbfc_applications(dealer_id)');
+    
+    // Session and OTP indexes
+    await client.query('CREATE INDEX IF NOT EXISTS idx_otp_storage_phone ON otp_storage(phone)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_otp_storage_expires ON otp_storage(expires_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token_hash)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_user_sessions_refresh ON user_sessions(refresh_token_hash)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_rate_limits_identifier ON rate_limits(identifier)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_rate_limits_action ON rate_limits(action)');
 
     console.log('Tables created successfully');
   } finally {

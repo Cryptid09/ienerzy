@@ -389,7 +389,7 @@ router.get('/application-status/:id', authenticateToken, requireRole(['dealer', 
     res.json({
       application,
       emi_details: emiResult.rows,
-      summary: {
+        summary: {
         total_emis: application.total_emis,
         paid_emis: application.paid_emis,
         pending_emis: application.pending_emis,
