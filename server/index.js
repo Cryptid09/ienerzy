@@ -42,6 +42,39 @@ app.get('/health', (req, res) => {
   });
 });
 
+// API health check endpoint
+app.get('/api/health', async (req, res) => {
+  try {
+    // Test database connection
+    const { pool } = require('./database/setup');
+    const dbResult = await pool.query('SELECT NOW() as current_time');
+    
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development',
+      database: {
+        status: 'connected',
+        time: dbResult.rows[0].current_time
+      },
+      services: {
+        messaging: require('./services/messaging').isAvailable(),
+        email: require('./services/email').isAvailable()
+      }
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: error.message,
+      database: {
+        status: 'disconnected'
+      }
+    });
+  }
+});
+
 // Serve React app for all non-API routes (only in production)
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));

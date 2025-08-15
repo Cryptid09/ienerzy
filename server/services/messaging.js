@@ -41,6 +41,11 @@ class MessagingService {
       // Format phone number to ensure it has country code
       const formattedNumber = this.formatPhoneNumber(to);
       
+      // Validate Twilio phone number format
+      if (!this.phoneNumber.startsWith('+1') && !this.phoneNumber.startsWith('+44') && !this.phoneNumber.startsWith('+91')) {
+        console.warn(`Warning: Twilio phone number ${this.phoneNumber} may not be valid. Use a verified Twilio number.`);
+      }
+      
       const result = await this.client.messages.create({
         body: message,
         from: this.phoneNumber,
@@ -51,7 +56,15 @@ class MessagingService {
       return result;
     } catch (error) {
       console.error('Failed to send SMS:', error.message);
-      throw new Error(`Failed to send SMS: ${error.message}`);
+      
+      // Provide more helpful error messages
+      if (error.message.includes('not a Twilio phone number')) {
+        throw new Error(`Invalid Twilio phone number: ${this.phoneNumber}. Please use a verified Twilio number.`);
+      } else if (error.message.includes('country mismatch')) {
+        throw new Error(`Phone number country mismatch. Ensure both numbers are from the same country.`);
+      } else {
+        throw new Error(`Failed to send SMS: ${error.message}`);
+      }
     }
   }
 

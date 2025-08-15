@@ -111,7 +111,16 @@ router.post('/verify-otp', otpLimit, async (req, res) => {
     }
 
     // Verify OTP
-    const otpResult = await sessionService.verifyOTP(phone, otp);
+    let otpResult;
+    try {
+      otpResult = await sessionService.verifyOTP(phone, otp);
+    } catch (verifyError) {
+      console.error('OTP verification error:', verifyError);
+      return res.status(500).json({ 
+        error: 'OTP verification failed. Please try again or request a new OTP.',
+        details: verifyError.message
+      });
+    }
     
     if (!otpResult.valid) {
       let errorMessage = 'Invalid OTP';

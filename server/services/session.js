@@ -9,6 +9,20 @@ class SessionService {
       // Clean up expired OTPs first
       await this.cleanupExpiredOTPs();
       
+      // Validate and prepare user data
+      let processedUserData;
+      if (typeof userData === 'object' && userData !== null) {
+        // Ensure we have the required fields
+        processedUserData = {
+          id: userData.id,
+          name: userData.name || 'Unknown User',
+          phone: userData.phone || phone,
+          role: userData.role || userType
+        };
+      } else {
+        throw new Error('Invalid user data provided');
+      }
+      
       // Store new OTP
       const result = await pool.query(
         `INSERT INTO otp_storage (phone, otp, user_data, user_type, expires_at, attempts)
@@ -25,7 +39,7 @@ class SessionService {
         [
           phone, 
           otp, 
-          JSON.stringify(userData), 
+          JSON.stringify(processedUserData), 
           userType, 
           new Date(Date.now() + config.OTP_EXPIRES_IN),
           0
@@ -73,9 +87,23 @@ class SessionService {
       // OTP is valid - delete it and return user data
       await this.deleteOTP(phone);
       
+      // Safely parse user data with fallback
+      let userData;
+      try {
+        userData = JSON.parse(otpData.user_data);
+      } catch (parseError) {
+        console.error('Failed to parse user_data:', otpData.user_data);
+        // Fallback: create a basic user object from the raw data
+        if (typeof otpData.user_data === 'object' && otpData.user_data !== null) {
+          userData = otpData.user_data;
+        } else {
+          throw new Error('Invalid user data format in OTP storage');
+        }
+      }
+      
       return {
         valid: true,
-        userData: JSON.parse(otpData.user_data),
+        userData: userData,
         userType: otpData.user_type
       };
     } catch (error) {
@@ -96,9 +124,25 @@ class SessionService {
   // Clean up expired OTPs
   async cleanupExpiredOTPs() {
     try {
-      await pool.query('DELETE FROM otp_storage WHERE expires_at <= NOW()');
+      const result = await pool.query('DELETE FROM otp_storage WHERE expires_at <= NOW()');
+      if (result.rowCount > 0) {
+        console.log(`Cleaned up ${result.rowCount} expired OTPs`);
+      }
     } catch (error) {
       console.error('Error cleaning up expired OTPs:', error);
+      // Don't throw error as this is cleanup operation
+    }
+  }
+
+  // Clean up old rate limit entries
+  async cleanupOldRateLimits() {
+    try {
+      const result = await pool.query('DELETE FROM rate_limits WHERE last_attempt <= NOW() - INTERVAL \'1 hour\'');
+      if (result.rowCount > 0) {
+        console.log(`Cleaned up ${result.rowCount} old rate limit entries`);
+      }
+    } catch (error) {
+      console.error('Error cleaning up old rate limits:', error);
     }
   }
 
