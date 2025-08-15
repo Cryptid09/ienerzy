@@ -172,119 +172,234 @@ router.post('/disbursement', authenticateToken, requireRole(['nbfc', 'admin']), 
   }
 });
 
-// GET /api/v1/nbfc/portfolio - Portfolio analytics
-router.get('/portfolio', authenticateToken, requireRole(['nbfc', 'admin']), async (req, res) => {
+// POST /api/v1/nbfc/webhook-status - Handle NBFC status webhooks
+router.post('/webhook-status', async (req, res) => {
   try {
-    const { start_date, end_date } = req.query;
+    const { applicationId, status, sanctionedAmount, interestRate, emiAmount, disbursementDate } = req.body;
     
-    let dateFilter = '';
-    let params = [];
-    
-    if (start_date && end_date) {
-      dateFilter = 'WHERE na.submitted_at BETWEEN $1 AND $2';
-      params = [start_date, end_date];
+    if (!applicationId || !status) {
+      return res.status(400).json({ error: 'Application ID and status are required' });
     }
     
-    const portfolioQuery = `
+    // Find the application
+    const appResult = await pool.query(
+      'SELECT * FROM nbfc_applications WHERE id = $1',
+      [applicationId]
+    );
+    
+    if (appResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+    
+    const application = appResult.rows[0];
+    
+    // Update application status
+    let updateQuery = 'UPDATE nbfc_applications SET status = $1';
+    let updateParams = [status];
+    
+    if (status === 'approved' && sanctionedAmount) {
+      updateQuery += ', sanctioned_amount = $2, interest_rate = $3, emi_amount = $4';
+      updateParams.push(sanctionedAmount, interestRate || 12, emiAmount);
+    }
+    
+    if (status === 'disbursed' && disbursementDate) {
+      updateQuery += ', disbursed_amount = $2, disbursement_date = $3';
+      updateParams.push(sanctionedAmount || application.amount, disbursementDate);
+    }
+    
+    updateQuery += ' WHERE id = $' + (updateParams.length + 1) + ' RETURNING *';
+    updateParams.push(applicationId);
+    
+    const result = await pool.query(updateQuery, updateParams);
+    
+    // If disbursed, create EMI schedule
+    if (status === 'disbursed' && result.rows[0].tenure_months) {
+      const emiAmount = (sanctionedAmount || application.amount) / result.rows[0].tenure_months;
+      
+      for (let i = 1; i <= result.rows[0].tenure_months; i++) {
+        const dueDate = new Date(disbursementDate);
+        dueDate.setMonth(dueDate.getMonth() + i);
+        
+        await pool.query(
+          'INSERT INTO emi_schedules (application_id, emi_number, due_date, amount, status) VALUES ($1, $2, $3, $4, $5)',
+          [applicationId, i, dueDate.toISOString().split('T')[0], emiAmount.toFixed(2), 'pending']
+        );
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Webhook processed successfully',
+      application: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error processing NBFC webhook:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/v1/nbfc/portfolio - Get NBFC portfolio analytics
+router.get('/portfolio', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    let whereClause = '';
+    let params = [];
+    
+    if (req.user.role === 'dealer') {
+      whereClause = 'WHERE c.dealer_id = $1';
+      params = [userId];
+    }
+    
+    // Portfolio summary
+    const summaryQuery = `
       SELECT 
         COUNT(*) as total_applications,
         COUNT(CASE WHEN na.status = 'approved' THEN 1 END) as approved_count,
         COUNT(CASE WHEN na.status = 'disbursed' THEN 1 END) as disbursed_count,
         COUNT(CASE WHEN na.status = 'rejected' THEN 1 END) as rejected_count,
         SUM(CASE WHEN na.status = 'disbursed' THEN na.disbursed_amount ELSE 0 END) as total_disbursed,
-        AVG(CASE WHEN na.status = 'disbursed' THEN na.tenure_months ELSE NULL END) as avg_tenure
+        AVG(CASE WHEN na.status = 'disbursed' THEN na.interest_rate ELSE NULL END) as avg_interest_rate
       FROM nbfc_applications na
-      ${dateFilter}
+      JOIN consumers c ON na.consumer_id = c.id
+      ${whereClause}
     `;
     
-    const portfolioResult = await pool.query(portfolioQuery, params);
+    const summaryResult = await pool.query(summaryQuery, params);
     
-    // Get monthly disbursement trends
-    const trendsQuery = `
+    // Monthly disbursement trend
+    const trendQuery = `
       SELECT 
         DATE_TRUNC('month', na.disbursement_date) as month,
-        COUNT(*) as disbursements,
-        SUM(na.disbursed_amount) as amount
+        COUNT(*) as applications,
+        SUM(na.disbursed_amount) as amount_disbursed
       FROM nbfc_applications na
+      JOIN consumers c ON na.consumer_id = c.id
       WHERE na.status = 'disbursed' AND na.disbursement_date IS NOT NULL
+        ${whereClause ? whereClause.replace('WHERE', 'AND') : ''}
       GROUP BY DATE_TRUNC('month', na.disbursement_date)
       ORDER BY month DESC
       LIMIT 12
     `;
     
-    const trendsResult = await pool.query(trendsQuery);
+    const trendResult = await pool.query(trendQuery, params);
     
     res.json({
-      success: true,
-      portfolio: portfolioResult.rows[0],
-      trends: trendsResult.rows
+      portfolio_summary: summaryResult.rows[0],
+      monthly_trend: trendResult.rows,
+      portfolio_health: {
+        approval_rate: summaryResult.rows[0].total_applications > 0 ? 
+          (summaryResult.rows[0].approved_count / summaryResult.rows[0].total_applications * 100).toFixed(1) : 0,
+        disbursement_rate: summaryResult.rows[0].total_applications > 0 ? 
+          (summaryResult.rows[0].disbursed_count / summaryResult.rows[0].total_applications * 100).toFixed(1) : 0
+      }
     });
   } catch (error) {
-    console.error('NBFC portfolio error:', error);
+    console.error('Error fetching NBFC portfolio:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /api/v1/nbfc/collection-report - Collection reporting
-router.post('/collection-report', authenticateToken, requireRole(['nbfc', 'admin']), async (req, res) => {
+// POST /api/v1/nbfc/collection-report - Submit collection report to NBFC
+router.post('/collection-report', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
   try {
-    const { start_date, end_date } = req.body;
+    const { report_date, collection_data } = req.body;
     
-    if (!start_date || !end_date) {
-      return res.status(400).json({ error: 'Start and end dates are required' });
+    if (!report_date || !collection_data) {
+      return res.status(400).json({ error: 'Report date and collection data are required' });
     }
     
-    const collectionQuery = `
-      SELECT 
-        es.application_id,
-        na.loan_account_number,
-        c.name as consumer_name,
-        c.phone as consumer_phone,
-        es.emi_number,
-        es.amount,
-        es.due_date,
-        es.status,
-        es.payment_date,
-        es.payment_amount
-      FROM emi_schedules es
-      JOIN nbfc_applications na ON es.application_id = na.id
-      JOIN consumers c ON na.consumer_id = c.id
-      WHERE es.due_date BETWEEN $1 AND $2
-      ORDER BY es.due_date, na.loan_account_number
+    // Mock NBFC API call - in production, this would call actual NBFC API
+    const mockNBFCResponse = {
+      success: true,
+      report_id: `RPT${Date.now()}`,
+      status: 'submitted',
+      message: 'Collection report submitted successfully to NBFC',
+      timestamp: new Date().toISOString()
+    };
+    
+    // Store collection report locally
+    const reportQuery = `
+      INSERT INTO nbfc_collection_reports (
+        dealer_id, report_date, collection_data, nbfc_response, created_at
+      ) VALUES ($1, $2, $3, $4, NOW())
+      RETURNING *
     `;
     
-    const collectionResult = await pool.query(collectionQuery, [start_date, end_date]);
-    
-    // Calculate collection metrics
-    const totalEMIs = collectionResult.rows.length;
-    const paidEMIs = collectionResult.rows.filter(row => row.status === 'paid').length;
-    const overdueEMIs = collectionResult.rows.filter(row => 
-      row.status === 'pending' && new Date(row.due_date) < new Date()
-    ).length;
-    
-    const totalAmount = collectionResult.rows.reduce((sum, row) => sum + parseFloat(row.amount), 0);
-    const collectedAmount = collectionResult.rows
-      .filter(row => row.status === 'paid')
-      .reduce((sum, row) => sum + parseFloat(row.payment_amount || 0), 0);
+    const result = await pool.query(reportQuery, [
+      req.user.userId,
+      report_date,
+      JSON.stringify(collection_data),
+      JSON.stringify(mockNBFCResponse)
+    ]);
     
     res.json({
       success: true,
-      report: {
-        period: { start_date, end_date },
-        summary: {
-          total_emis: totalEMIs,
-          paid_emis: paidEMIs,
-          overdue_emis: overdueEMIs,
-          collection_rate: totalEMIs > 0 ? ((paidEMIs / totalEMIs) * 100).toFixed(2) : 0,
-          total_amount: totalAmount,
-          collected_amount: collectedAmount,
-          outstanding_amount: totalAmount - collectedAmount
-        },
-        details: collectionResult.rows
+      message: 'Collection report submitted successfully',
+      report: result.rows[0],
+      nbfc_response: mockNBFCResponse,
+      note: 'This is a mock NBFC integration. In production, implement actual NBFC API calls.'
+    });
+  } catch (error) {
+    console.error('Error submitting collection report:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/v1/nbfc/application-status/:id - Get detailed application status
+router.get('/application-status/:id', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const query = `
+      SELECT 
+        na.*,
+        c.name as consumer_name,
+        c.phone as consumer_phone,
+        b.serial_number as battery_serial,
+        COUNT(es.id) as total_emis,
+        COUNT(CASE WHEN es.status = 'paid' THEN 1 END) as paid_emis,
+        COUNT(CASE WHEN es.status = 'pending' THEN 1 END) as pending_emis,
+        COUNT(CASE WHEN es.status = 'overdue' THEN 1 END) as overdue_emis
+      FROM nbfc_applications na
+      JOIN consumers c ON na.consumer_id = c.id
+      JOIN batteries b ON na.battery_id = b.id
+      LEFT JOIN emi_schedules es ON na.id = es.application_id
+      WHERE na.id = $1
+      GROUP BY na.id, c.id, b.id
+    `;
+    
+    const result = await pool.query(query, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+    
+    const application = result.rows[0];
+    
+    // Get EMI details
+    const emiQuery = `
+      SELECT * FROM emi_schedules 
+      WHERE application_id = $1 
+      ORDER BY emi_number
+    `;
+    
+    const emiResult = await pool.query(emiQuery, [id]);
+    
+    res.json({
+      application,
+      emi_details: emiResult.rows,
+      summary: {
+        total_emis: application.total_emis,
+        paid_emis: application.paid_emis,
+        pending_emis: application.pending_emis,
+        overdue_emis: application.overdue_emis,
+        collection_rate: application.total_emis > 0 ? 
+          (application.paid_emis / application.total_emis * 100).toFixed(1) : 0
       }
     });
   } catch (error) {
-    console.error('NBFC collection report error:', error);
+    console.error('Error fetching application status:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

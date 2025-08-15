@@ -274,4 +274,339 @@ router.get('/battery/:id/tickets', authenticateToken, requireRole(['dealer', 'ad
   }
 });
 
+// GET /service/tickets/active - Get active tickets
+router.get('/tickets/active', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    let whereClause = '';
+    let params = [];
+    
+    if (req.user.role === 'dealer') {
+      whereClause = 'AND c.dealer_id = $2';
+      params = [userId];
+    }
+    
+    const query = `
+      SELECT 
+        st.*,
+        b.serial_number as battery_serial,
+        c.name as consumer_name,
+        c.phone as consumer_phone,
+        u.name as technician_name
+      FROM service_tickets st
+      JOIN batteries b ON st.battery_id = b.id
+      JOIN consumers c ON b.owner_id = c.id
+      LEFT JOIN users u ON st.assigned_to = u.id
+      WHERE st.status IN ('open', 'assigned', 'in_progress')
+        ${whereClause}
+      ORDER BY st.created_at DESC
+    `;
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      active_tickets: result.rows,
+      count: result.rows.length,
+      summary: {
+        open: result.rows.filter(t => t.status === 'open').length,
+        assigned: result.rows.filter(t => t.status === 'assigned').length,
+        in_progress: result.rows.filter(t => t.status === 'in_progress').length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching active tickets:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /service/tickets/:id/assign - Assign ticket to technician
+router.put('/:id/assign', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { technician_id, priority = 'medium' } = req.body;
+    
+    if (!technician_id) {
+      return res.status(400).json({ error: 'Technician ID is required' });
+    }
+    
+    // Verify technician exists
+    const techCheck = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND role = $2',
+      [technician_id, 'technician']
+    );
+    
+    if (techCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Technician not found' });
+    }
+    
+    // Update ticket assignment
+    const result = await pool.query(
+      'UPDATE service_tickets SET assigned_to = $1, status = $2, priority = $3 WHERE id = $4 RETURNING *',
+      [technician_id, 'assigned', priority, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    
+    res.json({
+      message: 'Ticket assigned successfully',
+      ticket: result.rows[0],
+      assigned_technician: techCheck.rows[0]
+    });
+  } catch (error) {
+    console.error('Error assigning ticket:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /service/tickets/:id/update - Update ticket status and details
+router.post('/:id/update', authenticateToken, requireRole(['dealer', 'admin', 'technician']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, description, resolution_notes, parts_used, labor_hours } = req.body;
+    
+    if (!status || !['open', 'assigned', 'in_progress', 'resolved', 'cancelled'].includes(status)) {
+      return res.status(400).json({ error: 'Valid status is required' });
+    }
+    
+    // Build update query dynamically
+    let updateFields = ['status = $1'];
+    let updateParams = [status];
+    let paramIndex = 2;
+    
+    if (description) {
+      updateFields.push(`description = $${paramIndex++}`);
+      updateParams.push(description);
+    }
+    
+    if (resolution_notes) {
+      updateFields.push(`resolution_notes = $${paramIndex++}`);
+      updateParams.push(resolution_notes);
+    }
+    
+    if (parts_used) {
+      updateFields.push(`parts_used = $${paramIndex++}`);
+      updateParams.push(parts_used);
+    }
+    
+    if (labor_hours) {
+      updateFields.push(`labor_hours = $${paramIndex++}`);
+      updateParams.push(labor_hours);
+    }
+    
+    if (status === 'resolved') {
+      updateFields.push(`resolved_at = $${paramIndex++}`);
+      updateParams.push(new Date().toISOString());
+    }
+    
+    const updateQuery = `UPDATE service_tickets SET ${updateFields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+    updateParams.push(id);
+    
+    const result = await pool.query(updateQuery, updateParams);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    
+    res.json({
+      message: 'Ticket updated successfully',
+      ticket: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating ticket:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /service/technicians/available - Get available technicians with scoring
+router.get('/technicians/available', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
+  try {
+    const { location, skill_required } = req.query;
+    
+    // Mock technician data with enhanced scoring
+    const technicians = [
+      { 
+        id: 1, 
+        name: 'Tech One', 
+        location: 'Bangalore Central', 
+        status: 'available',
+        skills: ['battery_maintenance', 'electrical'],
+        rating: 4.5,
+        experience_years: 3,
+        current_load: 2
+      },
+      { 
+        id: 2, 
+        name: 'Tech Two', 
+        location: 'Bangalore North', 
+        status: 'available',
+        skills: ['battery_maintenance', 'mechanical'],
+        rating: 4.2,
+        experience_years: 2,
+        current_load: 1
+      },
+      { 
+        id: 3, 
+        name: 'Tech Three', 
+        location: 'Bangalore South', 
+        status: 'available',
+        skills: ['electrical', 'diagnostics'],
+        rating: 4.8,
+        experience_years: 5,
+        current_load: 0
+      }
+    ];
+    
+    // Filter by location if specified
+    let availableTechs = technicians.filter(t => t.status === 'available');
+    
+    if (location) {
+      availableTechs = availableTechs.filter(t => 
+        t.location.toLowerCase().includes(location.toLowerCase())
+      );
+    }
+    
+    // Filter by skills if specified
+    if (skill_required) {
+      availableTechs = availableTechs.filter(t => 
+        t.skills.includes(skill_required)
+      );
+    }
+    
+    // Calculate availability score
+    availableTechs = availableTechs.map(tech => ({
+      ...tech,
+      availability_score: calculateTechnicianScore(tech, location)
+    }));
+    
+    // Sort by availability score
+    availableTechs.sort((a, b) => b.availability_score - a.availability_score);
+    
+    res.json({
+      available_technicians: availableTechs,
+      count: availableTechs.length,
+      scoring_algorithm: 'Based on location proximity, skills match, rating, experience, and current workload'
+    });
+  } catch (error) {
+    console.error('Error fetching available technicians:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Helper function to calculate technician score
+function calculateTechnicianScore(technician, location) {
+  let score = 0;
+  
+  // Base score from rating (0-50 points)
+  score += technician.rating * 10;
+  
+  // Experience bonus (0-20 points)
+  score += Math.min(technician.experience_years * 4, 20);
+  
+  // Workload bonus - less load = higher score (0-20 points)
+  score += Math.max(20 - technician.current_load * 5, 0);
+  
+  // Location proximity bonus (0-10 points)
+  if (location && technician.location.toLowerCase().includes(location.toLowerCase())) {
+    score += 10;
+  }
+  
+  return score;
+}
+
+// POST /service/auto-assign - Auto-assign ticket using smart algorithm
+router.post('/auto-assign', authenticateToken, requireRole(['dealer', 'admin']), async (req, res) => {
+  try {
+    const { ticket_id, location, priority = 'medium', skill_required } = req.body;
+    
+    if (!ticket_id || !location) {
+      return res.status(400).json({ error: 'Ticket ID and location are required' });
+    }
+    
+    // Get available technicians
+    const availableTechs = await getAvailableTechnicians(location, skill_required);
+    
+    if (availableTechs.length === 0) {
+      return res.status(503).json({ error: 'No technicians available for auto-assignment' });
+    }
+    
+    // Score and rank technicians
+    const scoredTechs = availableTechs.map(tech => ({
+      ...tech,
+      score: calculateTechnicianScore(tech, location)
+    }));
+    
+    scoredTechs.sort((a, b) => b.score - a.score);
+    const bestTech = scoredTechs[0];
+    
+    // Assign ticket to best technician
+    const result = await pool.query(
+      'UPDATE service_tickets SET assigned_to = $1, status = $2, priority = $3 WHERE id = $4 RETURNING *',
+      [bestTech.id, 'assigned', priority, ticket_id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    
+    res.json({
+      message: 'Ticket auto-assigned successfully',
+      ticket: result.rows[0],
+      assigned_technician: bestTech,
+      assignment_reason: `Selected based on highest score: ${bestTech.score}`,
+      other_candidates: scoredTechs.slice(1, 4).map(t => ({ id: t.id, name: t.name, score: t.score }))
+    });
+  } catch (error) {
+    console.error('Error auto-assigning ticket:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Helper function to get available technicians
+async function getAvailableTechnicians(location, skillRequired) {
+  // Mock implementation - in production, this would query the database
+  const mockTechnicians = [
+    { 
+      id: 1, 
+      name: 'Tech One', 
+      location: 'Bangalore Central', 
+      status: 'available',
+      skills: ['battery_maintenance', 'electrical'],
+      rating: 4.5,
+      experience_years: 3,
+      current_load: 2
+    },
+    { 
+      id: 2, 
+      name: 'Tech Two', 
+      location: 'Bangalore North', 
+      status: 'available',
+      skills: ['battery_maintenance', 'mechanical'],
+      rating: 4.2,
+      experience_years: 2,
+      current_load: 1
+    },
+    { 
+      id: 3, 
+      name: 'Tech Three', 
+      location: 'Bangalore South', 
+      status: 'available',
+      skills: ['electrical', 'diagnostics'],
+      rating: 4.8,
+      experience_years: 5,
+      current_load: 0
+    }
+  ];
+  
+  let availableTechs = mockTechnicians.filter(t => t.status === 'available');
+  
+  if (skillRequired) {
+    availableTechs = availableTechs.filter(t => t.skills.includes(skillRequired));
+  }
+  
+  return availableTechs;
+}
+
 module.exports = router; 

@@ -441,11 +441,9 @@ router.post('/login-password', async (req, res) => {
 // GET /auth/me - Get current user info
 router.get('/me', authenticateToken, (req, res) => {
   res.json({
-    user: {
-      id: req.user.userId,
-      phone: req.user.phone,
-      role: req.user.role
-    }
+    id: req.user.userId,
+    phone: req.user.phone,
+    role: req.user.role
   });
 });
 
